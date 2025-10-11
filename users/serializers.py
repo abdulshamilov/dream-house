@@ -1,48 +1,62 @@
-# users/serializers.py
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import User
-from django.contrib.auth import authenticate
 
-class RegisterEmailSerializer(serializers.ModelSerializer):
+User = get_user_model()
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
+
     class Meta:
         model = User
-        fields = ["email", "name", "surname", "patronymic", "date_of_birthday", "password"]
-        extra_kwargs = {"password": {"write_only": True}}
+        fields = ('id', 'email', 'phone_number', 'password', 'name', 'surname', 'patronymic', 'date_of_birthday')
 
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        return User.objects.create_user(
+            email=validated_data.get('email'),
+            phone_number=validated_data.get('phone_number'),
+            password=validated_data['password'],
+            name=validated_data.get('name'),
+            surname=validated_data.get('surname'),
+            patronymic=validated_data.get('patronymic'),
+            date_of_birthday=validated_data.get('date_of_birthday'),
+        )
 
-class RegisterPhoneSerializer(serializers.ModelSerializer):
+
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["phone_number", "name", "surname", "patronymic", "date_of_birthday", "password"]
-        extra_kwargs = {"password": {"write_only": True}}
+        fields = ('id', 'email', 'phone_number', 'name', 'surname', 'patronymic', 'date_of_birthday')
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
 
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+User = get_user_model()
 
-
-class LoginEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        user = authenticate(email=attrs["email"], password=attrs["password"])
-        if not user:
-            raise serializers.ValidationError({"code": "AUTH_FAILED", "reason": "WRONG_PASSWORD"})
-        return {"user": user}
+# Ответ на регистрацию / ошибки
+class RegisterResponseSerializer(serializers.Serializer):
+    ok = serializers.BooleanField()
+    code = serializers.CharField()
+    reason = serializers.CharField(allow_blank=True)
 
 
-class LoginPhoneSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
-    password = serializers.CharField(write_only=True)
+# Ответ на MeView
+class MeResponseSerializer(serializers.Serializer):
+    ok = serializers.BooleanField()
+    code = serializers.CharField()
+    reason = serializers.CharField(allow_blank=True)
+    user = serializers.DictField()
 
-    def validate(self, attrs):
-        try:
-            user = User.objects.get(phone_number=attrs["phone_number"])
-        except User.DoesNotExist:
-            raise serializers.ValidationError({"code": "AUTH_FAILED", "reason": "DONT_REGIST"})
-        
-        if not user.check_password(attrs["password"]):
-            raise serializers.ValidationError({"code": "AUTH_FAILED", "reason": "WRONG_PASSWORD"})
-        return {"user": user}
+
+# Ответ на Login
+class LoginResponseSerializer(serializers.Serializer):
+    ok = serializers.BooleanField()
+    code = serializers.CharField()
+    access = serializers.CharField(required=False)
+    refresh = serializers.CharField(required=False)
+    reason = serializers.CharField(allow_blank=True)
+
+
+# Ответ на Reset Password
+class ResetResponseSerializer(serializers.Serializer):
+    ok = serializers.BooleanField()
+    code = serializers.CharField()
+    reason = serializers.CharField()
