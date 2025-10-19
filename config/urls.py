@@ -18,7 +18,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, Toke
         "- **access** — используется для доступа к защищённым эндпоинтам (жизнь ~5–15 мин)\n"
         "- **refresh** — используется для обновления access-токена, когда он истечёт.\n\n"
         "Поля запроса:\n"
-        "- `email` или `phone_number`\n"
+        "- `email` или ``\n"
         "- `password`\n\n"
         "**Важно:** отправляй `Authorization: Bearer <access>` в заголовке запроса для защищённых методов."
     ),

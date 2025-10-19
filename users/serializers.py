@@ -3,42 +3,37 @@ from rest_framework import serializers
 
 User = get_user_model()
 
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'phone_number', 'password', 'name', 'surname', 'patronymic', 'date_of_birthday')
+        fields = ('id', 'email', 'name', 'password')  # email → name → password
 
     def create(self, validated_data):
         return User.objects.create_user(
             email=validated_data.get('email'),
-            phone_number=validated_data.get('phone_number'),
             password=validated_data['password'],
             name=validated_data.get('name'),
-            surname=validated_data.get('surname'),
-            patronymic=validated_data.get('patronymic'),
-            date_of_birthday=validated_data.get('date_of_birthday'),
         )
+
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'phone_number', 'name', 'surname', 'patronymic', 'date_of_birthday')
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
+        fields = ('id', 'email', 'name')
 
-User = get_user_model()
 
-# Ответ на регистрацию / ошибки
+# --- Ответ на регистрацию / ошибки ---
 class RegisterResponseSerializer(serializers.Serializer):
     ok = serializers.BooleanField()
     code = serializers.CharField()
     reason = serializers.CharField(allow_blank=True)
 
 
-# Ответ на MeView
+# --- Ответ на MeView ---
 class MeResponseSerializer(serializers.Serializer):
     ok = serializers.BooleanField()
     code = serializers.CharField()
@@ -46,7 +41,7 @@ class MeResponseSerializer(serializers.Serializer):
     user = serializers.DictField()
 
 
-# Ответ на Login
+# --- Ответ на Login ---
 class LoginResponseSerializer(serializers.Serializer):
     ok = serializers.BooleanField()
     code = serializers.CharField()
@@ -55,7 +50,7 @@ class LoginResponseSerializer(serializers.Serializer):
     reason = serializers.CharField(allow_blank=True)
 
 
-# Ответ на Reset Password
+# --- Ответ на Reset Password ---
 class ResetResponseSerializer(serializers.Serializer):
     ok = serializers.BooleanField()
     code = serializers.CharField()

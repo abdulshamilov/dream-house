@@ -1,16 +1,14 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
 
+
 class UserManager(BaseUserManager):
-    def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
-        if not email and not phone_number:
-            raise ValueError("User must have email or phone number")
-        
-        if email:
-            email = self.normalize_email(email)
-            extra_fields['email'] = email
-        if phone_number:
-            extra_fields['phone_number'] = phone_number
+    def create_user(self, email=None, password=None, **extra_fields):
+        if not email:
+            raise ValueError("User must have an email address")
+
+        email = self.normalize_email(email)
+        extra_fields['email'] = email
 
         user = self.model(**extra_fields)
         user.set_password(password)
@@ -25,12 +23,7 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, null=True, blank=True)
-    phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
-
     name = models.CharField(max_length=50)
-    surname = models.CharField(max_length=50)
-    patronymic = models.CharField(max_length=50, blank=True, null=True)
-    date_of_birthday = models.DateField(null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -41,4 +34,4 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = []
 
     def __str__(self):
-        return self.email or self.phone_number
+        return self.email or "User"
