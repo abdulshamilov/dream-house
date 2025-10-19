@@ -31,6 +31,11 @@ class Card(models.Model):
         choices=HOUSE_TYPE_CHOICES,
         default='apartment'
     )
+
+    # Поля рейтинга
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)  # 0.00 - 5.00
+    rating_count = models.PositiveIntegerField(default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

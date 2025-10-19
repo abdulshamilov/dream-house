@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Card, CardImage
 
+
 class CardImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CardImage
@@ -16,5 +17,6 @@ class CardSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'address', 'description', 
             'price', 'rooms', 'city', 'house_type', 
+            'rating', 'rating_count',
             'owner', 'images', 'created_at'
         ]

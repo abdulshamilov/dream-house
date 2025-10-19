@@ -7,5 +7,9 @@ class CardImageInline(admin.TabularInline):
 
 @admin.register(Card)
 class CardAdmin(admin.ModelAdmin):
-    list_display = ['title', 'owner', 'price', 'created_at']
+    list_display = [
+        'title', 'owner', 'price', 'rooms', 'city', 'house_type',
+        'rating', 'rating_count', 'created_at'
+    ]
+    list_editable = ['price', 'rooms', 'city', 'house_type', 'rating', 'rating_count']
     inlines = [CardImageInline]
