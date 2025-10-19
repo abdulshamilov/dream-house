@@ -6,10 +6,15 @@ class CardImageSerializer(serializers.ModelSerializer):
         model = CardImage
         fields = ['id', 'image']
 
+
 class CardSerializer(serializers.ModelSerializer):
     images = CardImageSerializer(many=True, read_only=True)
     owner = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Card
-        fields = ['id', 'title', 'address', 'description', 'price', 'owner', 'images', 'created_at']
+        fields = [
+            'id', 'title', 'address', 'description', 
+            'price', 'rooms', 'city', 'house_type', 
+            'owner', 'images', 'created_at'
+        ]

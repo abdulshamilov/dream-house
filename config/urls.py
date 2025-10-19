@@ -97,6 +97,7 @@ urlpatterns = [
 
     # --- Cards ---
     path("api/cards/", include("cards.urls")),
+    
 ]
 
 # --- Медиафайлы ---
