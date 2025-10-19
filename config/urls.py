@@ -7,6 +7,11 @@ from drf_spectacular.views import (
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiExample
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
+from django.conf import settings
+from django.conf.urls.static import static
+
+
+
 
 # --- Расширенные схемы для токенов ---
 @extend_schema(
@@ -18,7 +23,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, Toke
         "- **access** — используется для доступа к защищённым эндпоинтам (жизнь ~5–15 мин)\n"
         "- **refresh** — используется для обновления access-токена, когда он истечёт.\n\n"
         "Поля запроса:\n"
-        "- `email` или ``\n"
+        "- `email` или `phone_number`\n"
         "- `password`\n\n"
         "**Важно:** отправляй `Authorization: Bearer <access>` в заголовке запроса для защищённых методов."
     ),
@@ -89,4 +94,11 @@ urlpatterns = [
     # --- JWT токены ---
     path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
+
+    # --- Cards ---
+    path("api/cards/", include("cards.urls")),
 ]
+
+# --- Медиафайлы ---
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
