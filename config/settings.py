@@ -2,14 +2,15 @@ from pathlib import Path
 from datetime import timedelta
 import os
 
+# --- Paths ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY
+# --- Security ---
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "replace_me_in_prod")
-DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
-# Applications
+# --- Applications ---
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -24,10 +25,10 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
 
     'users',
-    'cards',
+    'cards',  # твой модуль с карточками
 ]
 
-# Middleware
+# --- Middleware ---
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -38,11 +39,14 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# --- URLS & WSGI ---
 ROOT_URLCONF = 'config.urls'
 WSGI_APPLICATION = 'config.wsgi.application'
+
+# --- Custom User ---
 AUTH_USER_MODEL = "users.User"
 
-# Templates
+# --- Templates ---
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -59,7 +63,7 @@ TEMPLATES = [
     },
 ]
 
-# Database (SQLite для dev, в проде лучше PostgreSQL)
+# --- Database ---
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -67,7 +71,7 @@ DATABASES = {
     }
 }
 
-# REST Framework
+# --- REST Framework ---
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -78,13 +82,12 @@ REST_FRAMEWORK = {
     ),
 }
 
-
-# Swagger / Spectacular
+# --- Swagger / Spectacular ---
 SPECTACULAR_SETTINGS = {
     "TITLE": "API FOR Dream House",
     "DESCRIPTION": "API для Dream House",
     "VERSION": "1.0.0",
-    "SERVE_INCLUDE_SCHEMA": DEBUG,  # включаем Swagger только в DEBUG
+    "SERVE_INCLUDE_SCHEMA": DEBUG,
     "SWAGGER_UI_SETTINGS": {
         "deepLinking": True,
         "persistAuthorization": True,
@@ -92,7 +95,7 @@ SPECTACULAR_SETTINGS = {
     },
 }
 
-# Password validation
+# --- Password validation ---
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -100,20 +103,20 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Localization
+# --- Localization ---
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
-STATIC_URL = 'static/'
+# --- Static files ---
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
 
-# Default primary key
+# --- Default primary key ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# JWT
+# --- JWT ---
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
