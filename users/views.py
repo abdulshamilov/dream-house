@@ -1,9 +1,9 @@
+from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from drf_spectacular.utils import extend_schema
 from .serializers import RegisterSerializer, UserSerializer
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
@@ -15,12 +15,12 @@ User = get_user_model()
     tags=["Auth"],
     summary="Регистрация пользователя",
     description=(
-        "Регистрация нового пользователя через **email**. "
-        "Если пользователь уже существует, возвращает ошибку.\n\n"
+        "Регистрация нового пользователя через **номер телефона**.\n\n"
         "Поля для запроса:\n"
-        "- `email` — адрес эл. почты\n"
+        "- `phone_number` — номер телефона (уникальный)\n"
         "- `name` — имя пользователя\n"
-        "- `password` — пароль"
+        "- `password` — пароль\n\n"
+        "Если номер уже зарегистрирован, возвращает ошибку."
     ),
     request=RegisterSerializer,
     responses={
@@ -38,7 +38,7 @@ User = get_user_model()
                 "example": {
                     "ok": False,
                     "code": "REGIST_FAILED",
-                    "reason": "ALREADY_REGISTERED"
+                    "reason": "MISSING_PASSWORD or MISSING_NAME or ALREADY_REGISTERED"
                 }
             }
         }
@@ -50,14 +50,25 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        email = request.data.get("email")
+        phone_number = request.data.get("phone_number")
+        name = request.data.get("name")
+        password = request.data.get("password")
 
-        if email and User.objects.filter(email=email).exists():
+        # --- Проверка на пустые поля ---
+        if not phone_number:
+            return Response({"ok": False, "code": "REGIST_FAILED", "reason": "MISSING_PHONE"}, status=400)
+        if not password:
+            return Response({"ok": False, "code": "REGIST_FAILED", "reason": "MISSING_PASSWORD"}, status=400)
+        if not name:
+            return Response({"ok": False, "code": "REGIST_FAILED", "reason": "MISSING_NAME"}, status=400)
+
+        # --- Проверка на дубликат ---
+        if User.objects.filter(phone_number=phone_number).exists():
             return Response({"ok": False, "code": "REGIST_FAILED", "reason": "ALREADY_REGISTERED"}, status=400)
 
+        serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            self.perform_create(serializer)
+            serializer.save()
             return Response({"ok": True, "code": "OK", "reason": ""}, status=201)
 
         return Response({"ok": False, "code": "REGIST_FAILED", "reason": serializer.errors}, status=400)
@@ -69,10 +80,7 @@ class RegisterView(generics.CreateAPIView):
 @extend_schema(
     tags=["User"],
     summary="Информация о текущем пользователе",
-    description=(
-        "Возвращает профиль текущего авторизованного пользователя.\n\n"
-        "Требуется **JWT-токен** в заголовке Authorization."
-    ),
+    description="Возвращает профиль текущего авторизованного пользователя. Требуется **JWT-токен**.",
     responses={
         200: {
             "application/json": {
@@ -82,7 +90,7 @@ class RegisterView(generics.CreateAPIView):
                     "reason": "",
                     "user": {
                         "id": 1,
-                        "email": "test@example.com",
+                        "phone_number": "+79991234567",
                         "name": "Test"
                     }
                 }
