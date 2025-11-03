@@ -97,6 +97,9 @@ urlpatterns = [
 
     # --- Cards ---
     path("api/cards/", include("cards.urls")),
+
+    path("api/documents/", include("documents.urls")),
+
     
 ]
 

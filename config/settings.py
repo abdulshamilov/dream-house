@@ -7,7 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Security ---
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "replace_me_in_prod")
-DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
+DEBUG=False
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
 # --- Applications ---
@@ -25,7 +25,8 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
 
     'users',
-    'cards',  # твой модуль с карточками
+    'cards',
+    'documents',
 ]
 
 # --- Middleware ---

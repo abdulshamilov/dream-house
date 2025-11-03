@@ -2,13 +2,36 @@ from django.db import models
 from django.conf import settings
 
 class Card(models.Model):
+    CITY_CHOICES = (
+        (1, 'Махачкала'),
+        (2, 'Каспийск'),
+        (3, 'Дербент'),
+    )
     HOUSE_TYPE_CHOICES = (
         ('private', 'Частный дом'),
         ('apartment', 'Квартира'),
     )
-    CITY_CHOICES = (
-        ('Махачкала', 'Махачкала'),
-        ('Каспийск', 'Каспийск'),
+
+    BUILDING_MATERIAL_CHOICES = (
+        ('brick', 'Кирпичный'),
+        ('panel', 'Панельный'),
+        ('monolith', 'Монолитный'),
+    )
+
+    CATEGORY_CHOICES = (
+        ('flat', 'Квартира'),
+        ('new_building', 'Новостройка'),
+    )
+
+    ELEVATOR_CHOICES = (
+        ('none', 'Нет'),
+        ('passenger', 'Пассажирский'),
+        ('cargo', 'Грузовой'),
+    )
+
+    PARKING_CHOICES = (
+        ('none', 'Нет'),
+        ('underground', 'Подземная'),
     )
 
     owner = models.ForeignKey(
@@ -16,32 +39,40 @@ class Card(models.Model):
         on_delete=models.CASCADE,
         related_name='cards'
     )
+
     title = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2)
     rooms = models.PositiveIntegerField(default=1)
-    city = models.CharField(
-        max_length=255,
-        choices=CITY_CHOICES,
-        default='Махачкала'
-    )
-    house_type = models.CharField(
-        max_length=50,
-        choices=HOUSE_TYPE_CHOICES,
-        default='apartment'
-    )
+    city = models.IntegerField(choices=CITY_CHOICES, default=1)
+    house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='apartment')
 
-    # Поля рейтинга
-    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)  # 0.00 - 5.00
+    # ✅ Новые поля
+    area = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
+    building_material = models.CharField(max_length=50, choices=BUILDING_MATERIAL_CHOICES, default='brick')
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='flat')
+    floors_total = models.PositiveIntegerField(default=1)
+    elevator = models.CharField(max_length=20, choices=ELEVATOR_CHOICES, default='none')
+    parking = models.CharField(max_length=20, choices=PARKING_CHOICES, default='none')
+    balcony = models.BooleanField(default=False)
+    ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50)
+
+    # ✅ Геолокация
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+
+    # ✅ Аккаунт ЖК
+    housing_account = models.URLField(null=True, blank=True)
+
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     rating_count = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
-
-
+    
 class CardImage(models.Model):
     card = models.ForeignKey(
         Card,
@@ -52,3 +83,18 @@ class CardImage(models.Model):
 
     def __str__(self):
         return f"{self.card.title} Image"
+
+class CallRequest(models.Model):
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='call_requests'
+    )
+    name = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=20)
+    preferred_time = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_processed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Заявка от {self.name} ({self.phone_number})"

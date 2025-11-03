@@ -5,6 +5,7 @@ from drf_spectacular.utils import extend_schema
 from .models import Card
 from .serializers import CardSerializer
 from .filters import CardFilter
+from .serializers import CallRequestSerializer
 
 # Сериализатор для оценки карточки
 class RateCardSerializer(serializers.Serializer):
@@ -77,3 +78,56 @@ class RateCardView(generics.GenericAPIView):
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+@extend_schema(
+    tags=["Cards"],
+    summary="Оставить заявку на звонок",
+    description=(
+        "Создаёт заявку на звонок по конкретной карточке.\n\n"
+        "Поля:\n"
+        "- `card` — ID карточки\n"
+        "- `name` — имя клиента\n"
+        "- `phone_number` — номер телефона\n"
+        "- `preferred_time` — удобное время для звонка (необязательно)"
+    ),
+    request=CallRequestSerializer,
+    responses={
+        201: {
+            "application/json": {
+                "example": {
+                    "ok": True,
+                    "code": "OK",
+                    "reason": ""
+                }
+            }
+        },
+        400: {
+            "application/json": {
+                "example": {
+                    "ok": False,
+                    "code": "FAILED",
+                    "reason": "INVALID_DATA"
+                }
+            }
+        },
+    }
+)
+class CallRequestCreateView(generics.CreateAPIView):
+    serializer_class = CallRequestSerializer
+    permission_classes = [permissions.AllowAny]
+
+class CallRequestCreateView(generics.CreateAPIView):
+    serializer_class = CallRequestSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        card_id = kwargs.get('pk')
+        try:
+            card = Card.objects.get(pk=card_id)
+        except Card.DoesNotExist:
+            return Response({"ok": False, "code": "FAILED", "reason": "CARD_NOT_FOUND"}, status=404)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(card=card)  # 🔹 привязываем карточку здесь
+        return Response({"ok": True, "code": "OK", "reason": ""}, status=201)
