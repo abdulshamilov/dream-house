@@ -99,6 +99,7 @@ urlpatterns = [
     path("api/cards/", include("cards.urls")),
 
     path("api/documents/", include("documents.urls")),
+    path("api/developers/", include("developers.urls")),
 
     
 ]

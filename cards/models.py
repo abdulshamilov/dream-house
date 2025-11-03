@@ -1,3 +1,4 @@
+# cards/models.py
 from django.db import models
 from django.conf import settings
 
@@ -7,6 +8,7 @@ class Card(models.Model):
         (2, 'Каспийск'),
         (3, 'Дербент'),
     )
+    
     HOUSE_TYPE_CHOICES = (
         ('private', 'Частный дом'),
         ('apartment', 'Квартира'),
@@ -40,6 +42,14 @@ class Card(models.Model):
         related_name='cards'
     )
 
+    developer = models.ForeignKey(
+        'developers.Developer',  # строка вместо импорта
+        on_delete=models.CASCADE,
+        related_name='cards',
+        null=True,
+        blank=True
+    )
+
     title = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
     description = models.TextField()
@@ -48,7 +58,7 @@ class Card(models.Model):
     city = models.IntegerField(choices=CITY_CHOICES, default=1)
     house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='apartment')
 
-    # ✅ Новые поля
+    # Дополнительные поля
     area = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
     building_material = models.CharField(max_length=50, choices=BUILDING_MATERIAL_CHOICES, default='brick')
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='flat')
@@ -58,11 +68,11 @@ class Card(models.Model):
     balcony = models.BooleanField(default=False)
     ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50)
 
-    # ✅ Геолокация
+    # Геолокация
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
-    # ✅ Аккаунт ЖК
+    # Аккаунт ЖК
     housing_account = models.URLField(null=True, blank=True)
 
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
@@ -72,7 +82,8 @@ class Card(models.Model):
 
     def __str__(self):
         return self.title
-    
+
+
 class CardImage(models.Model):
     card = models.ForeignKey(
         Card,
@@ -83,6 +94,7 @@ class CardImage(models.Model):
 
     def __str__(self):
         return f"{self.card.title} Image"
+
 
 class CallRequest(models.Model):
     card = models.ForeignKey(

@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'users',
     'cards',
     'documents',
+    'developers',
 ]
 
 # --- Middleware ---
