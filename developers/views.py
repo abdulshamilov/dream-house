@@ -15,16 +15,16 @@ class DeveloperListAPIView(generics.ListAPIView):
     serializer_class = DeveloperSerializer
 
 
-# ✅ Получить все ЖК застройщика
+# ✅ Получить все ЖК (квартиры) застройщика с полными данными
 class DeveloperCardsAPIView(generics.ListAPIView):
     serializer_class = CardSerializer
 
     def get_queryset(self):
         developer_id = self.kwargs['developer_id']
-        return Card.objects.filter(developer_id=developer_id)
+        return Card.objects.filter(developer_id=developer_id).select_related('owner', 'city').prefetch_related('images')
 
 
-# ✅ Подписаться на застройщика
+# ✅ Подписаться или отписаться от застройщика
 class SubscribeAPIView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
@@ -41,10 +41,10 @@ class SubscribeAPIView(generics.GenericAPIView):
     def delete(self, request, developer_id):
         developer = get_object_or_404(Developer, id=developer_id)
         Subscription.objects.filter(user=request.user, developer=developer).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({'detail': 'Подписка отменена'}, status=status.HTTP_204_NO_CONTENT)
 
 
-# ✅ Получить свои подписки
+# ✅ Получить все свои подписки
 class MySubscriptionsAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = SubscriptionSerializer
