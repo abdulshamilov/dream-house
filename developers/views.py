@@ -21,7 +21,7 @@ class DeveloperCardsAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         developer_id = self.kwargs['developer_id']
-        return Card.objects.filter(developer_id=developer_id).select_related('owner', 'city').prefetch_related('images')
+        return Card.objects.filter(developer_id=developer_id).select_related('owner').prefetch_related('images')
 
 
 # ✅ Подписаться или отписаться от застройщика
@@ -51,3 +51,25 @@ class MySubscriptionsAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         return Subscription.objects.filter(user=self.request.user)
+
+
+# ✅ Получить детальную информацию о застройщике + его ЖК
+class DeveloperDetailView(generics.RetrieveAPIView):
+    queryset = Developer.objects.all()
+    serializer_class = DeveloperSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        developer = self.get_object()
+        data = DeveloperSerializer(developer, context={'request': request}).data
+
+        # Подробные карточки с фото и прочими полями
+        cards = Card.objects.filter(developer=developer).select_related('owner').prefetch_related('images')
+        data['cards'] = CardSerializer(cards, many=True, context={'request': request}).data
+
+        # Дополнительно: проверяем, подписан ли пользователь
+        if request.user.is_authenticated:
+            data['is_subscribed'] = Subscription.objects.filter(user=request.user, developer=developer).exists()
+        else:
+            data['is_subscribed'] = False
+
+        return Response(data)
