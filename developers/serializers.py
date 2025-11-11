@@ -2,17 +2,22 @@ from rest_framework import serializers
 from .models import Developer, Subscription
 from cards.serializers import CardSerializer
 
-
 class DeveloperSerializer(serializers.ModelSerializer):
-    cards = CardSerializer(many=True, read_only=True)  # ЖК (карточки) застройщика
+    cards = CardSerializer(many=True, read_only=True)
+    is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
         model = Developer
-        fields = ['id', 'name', 'logo', 'cards']
+        fields = ['id', 'name', 'logo', 'cards', 'is_subscribed']
 
+    def get_is_subscribed(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return Subscription.objects.filter(user=user, developer=obj).exists()
+        return False
 
 class SubscriptionSerializer(serializers.ModelSerializer):
-    developer = DeveloperSerializer(read_only=True)  # ✅ Показывает весь объект застройщика
+    developer = DeveloperSerializer(read_only=True)
 
     class Meta:
         model = Subscription

@@ -1,4 +1,3 @@
-# cards/models.py
 from django.db import models
 from django.conf import settings
 
@@ -43,7 +42,7 @@ class Card(models.Model):
     )
 
     developer = models.ForeignKey(
-        'developers.Developer',  # строка вместо импорта
+        'developers.Developer',
         on_delete=models.CASCADE,
         related_name='cards',
         null=True,
@@ -72,9 +71,6 @@ class Card(models.Model):
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
-    # Аккаунт ЖК
-    housing_account = models.URLField(null=True, blank=True)
-
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     rating_count = models.PositiveIntegerField(default=0)
 
@@ -94,6 +90,32 @@ class CardImage(models.Model):
 
     def __str__(self):
         return f"{self.card.title} Image"
+        
+
+class CardVideo(models.Model):
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='videos'
+    )
+    video = models.FileField(upload_to='cards/videos/')
+
+    def __str__(self):
+        return f"{self.card.title} Video"
+
+
+class CardDocument(models.Model):
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    file = models.FileField(upload_to='cards/documents/')
+    title = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.card.title})"
 
 
 class CallRequest(models.Model):

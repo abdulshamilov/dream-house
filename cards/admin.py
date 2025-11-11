@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import Card, CardImage
-from documents.admin import DocumentInline  # импортируем inline
+
 
 class CardImageInline(admin.TabularInline):
     model = CardImage
@@ -14,4 +14,4 @@ class CardAdmin(admin.ModelAdmin):
         'rating', 'rating_count', 'created_at'
     ]
     list_editable = ['price', 'rooms', 'city', 'house_type', 'rating', 'rating_count']
-    inlines = [CardImageInline, DocumentInline]  # добавляем inline документов
+
