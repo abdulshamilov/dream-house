@@ -7,7 +7,7 @@ class Card(models.Model):
         (2, 'Каспийск'),
         (3, 'Дербент'),
     )
-    
+
     HOUSE_TYPE_CHOICES = (
         ('private', 'Частный дом'),
         ('apartment', 'Квартира'),
@@ -40,7 +40,6 @@ class Card(models.Model):
         on_delete=models.CASCADE,
         related_name='cards'
     )
-
     developer = models.ForeignKey(
         'developers.Developer',
         on_delete=models.CASCADE,
@@ -57,7 +56,6 @@ class Card(models.Model):
     city = models.IntegerField(choices=CITY_CHOICES, default=1)
     house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='apartment')
 
-    # Дополнительные поля
     area = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
     building_material = models.CharField(max_length=50, choices=BUILDING_MATERIAL_CHOICES, default='brick')
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='flat')
@@ -67,7 +65,6 @@ class Card(models.Model):
     balcony = models.BooleanField(default=False)
     ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50)
 
-    # Геолокация
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
@@ -78,46 +75,8 @@ class Card(models.Model):
 
     def __str__(self):
         return self.title
-
-
-class CardImage(models.Model):
-    card = models.ForeignKey(
-        Card,
-        on_delete=models.CASCADE,
-        related_name='images'
-    )
-    image = models.ImageField(upload_to='cards/img/')
-
-    def __str__(self):
-        return f"{self.card.title} Image"
-        
-
-class CardVideo(models.Model):
-    card = models.ForeignKey(
-        Card,
-        on_delete=models.CASCADE,
-        related_name='videos'
-    )
-    video = models.FileField(upload_to='cards/videos/')
-
-    def __str__(self):
-        return f"{self.card.title} Video"
-
-
-class CardDocument(models.Model):
-    card = models.ForeignKey(
-        Card,
-        on_delete=models.CASCADE,
-        related_name='documents'
-    )
-    file = models.FileField(upload_to='cards/documents/')
-    title = models.CharField(max_length=255)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.title} ({self.card.title})"
-
-
+    
+    
 class CallRequest(models.Model):
     card = models.ForeignKey(
         Card,
@@ -132,3 +91,57 @@ class CallRequest(models.Model):
 
     def __str__(self):
         return f"Заявка от {self.name} ({self.phone_number})"
+
+
+class CardImage(models.Model):
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='cards/img/')
+
+    def __str__(self):
+        return f"{self.card.title} Image"
+
+
+class CardVideo(models.Model):
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='videos')
+    video = models.FileField(upload_to='cards/videos/')
+
+    def __str__(self):
+        return f"{self.card.title} Video"
+
+
+class CardDocument(models.Model):
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='documents')
+    file = models.FileField(upload_to='cards/documents/')
+    title = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} ({self.card.title})"
+
+
+class CardReview(models.Model):
+    card = models.ForeignKey(Card, related_name='reviews', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    text = models.TextField()
+    rating = models.PositiveIntegerField(default=5)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Review by {self.user} for {self.card.title}"
+
+
+class CardQuestion(models.Model):
+    card = models.ForeignKey(Card, related_name='questions', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    question = models.TextField()
+    answer = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Question by {self.user} for {self.card.title}"
+
+
+class SearchHistory(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='search_history', on_delete=models.CASCADE)
+    query = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
