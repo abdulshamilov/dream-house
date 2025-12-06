@@ -27,9 +27,15 @@ class CardReviewInline(admin.TabularInline):
 class CardQuestionInline(admin.TabularInline):
     model = CardQuestion
     extra = 0
-    readonly_fields = ('user', 'question', 'answer', 'created_at')
+    readonly_fields = ('user', 'question', 'created_at')  # answer редактируем только суперпользователем
     can_delete = True
     show_change_link = True
+
+    def get_readonly_fields(self, request, obj=None):
+        if not request.user.is_superuser:
+            return self.readonly_fields + ['answer']
+        return self.readonly_fields
+
 
 # 🔹 Основная админка для карточки
 @admin.register(Card)
@@ -47,7 +53,8 @@ class CardAdmin(admin.ModelAdmin):
     list_filter = ['city', 'house_type', 'category', 'floors_total', 'elevator', 'parking']
     inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
 
-# 🔹 Отдельная регистрация остальных моделей (если нужно)
+
+# 🔹 Отдельная регистрация остальных моделей
 @admin.register(CardImage)
 class CardImageAdmin(admin.ModelAdmin):
     list_display = ['card', 'image']
@@ -68,4 +75,12 @@ class CardReviewAdmin(admin.ModelAdmin):
 @admin.register(CardQuestion)
 class CardQuestionAdmin(admin.ModelAdmin):
     list_display = ['card', 'user', 'question', 'answer', 'created_at']
-    readonly_fields = ['card', 'user', 'question', 'answer', 'created_at']
+    readonly_fields = ['card', 'user', 'question', 'created_at']  # answer редактируем только суперпользователем
+
+    def get_readonly_fields(self, request, obj=None):
+        if not request.user.is_superuser:
+            return self.readonly_fields + ['answer']
+        return self.readonly_fields
+
+    list_filter = ['card__title', 'card__city']
+    search_fields = ['question', 'answer', 'user__phone_number']

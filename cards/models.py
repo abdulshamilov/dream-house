@@ -165,3 +165,11 @@ class Favorite(models.Model):
 
     def __str__(self):
         return f"{self.user.phone_number} added {self.card.title} to favorites"
+
+class CardQuestion(models.Model):
+    card = models.ForeignKey(Card, related_name='questions', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    question = models.TextField()
+    answer = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)

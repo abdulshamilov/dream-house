@@ -6,7 +6,7 @@ from .models import (
 )
 # 🔑 НОВОЕ: Импорт модели Developer из приложения developers
 from developers.models import Developer 
-
+from .models import CardQuestion
 
 # -------------------------------
 # 🔑 НОВЫЙ: Сериализатор для Застройщика (для вложения)
@@ -136,3 +136,9 @@ class SearchHistorySerializer(serializers.ModelSerializer):
         model = SearchHistory
         fields = ['id', 'query', 'created_at']
         read_only_fields = ['user']
+
+class CardQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CardQuestion
+        fields = ['id', 'card', 'user', 'question', 'answer', 'created_at']
+        read_only_fields = ['card', 'user', 'answer', 'created_at']
