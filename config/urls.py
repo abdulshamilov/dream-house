@@ -102,6 +102,10 @@ urlpatterns = [
     path("api/developers/", include("developers.urls")),
 
     
+    path('api/notifications/', include('notifications.urls')),
+
+
+    
 ]
 
 # --- Медиафайлы ---

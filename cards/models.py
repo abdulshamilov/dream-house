@@ -145,3 +145,23 @@ class SearchHistory(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='search_history', on_delete=models.CASCADE)
     query = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
+# cards/models.py (добавьте в конец)
+class Favorite(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='favorites'
+    )
+    card = models.ForeignKey(
+        'Card',
+        on_delete=models.CASCADE,
+        related_name='favorites'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'card') # Один пользователь может добавить одну карточку только один раз
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.phone_number} added {self.card.title} to favorites"

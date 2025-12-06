@@ -12,12 +12,21 @@ from .views import (
     CardReviewDetailView,
     CardQuestionDetailView,
     CardSearchView,
+    
+    CardFilterPostView,       
+    FavoriteAPIView,          
+    MyFavoritesListAPIView,   
 )
 
 urlpatterns = [
-    # --- Карточки ---
-    path("", CardListView.as_view(), name="cards_list"),
+    # --- Список карточек и Фильтр ---
+    path("", CardListView.as_view(), name="cards_list"),                # GET /api/cards/
+    path("filter/", CardFilterPostView.as_view(), name="cards_filter_post"), # POST /api/cards/filter/
     path("<int:pk>/", CardDetailView.as_view(), name="card_detail"),
+
+    # --- Избранное ---
+    path("<int:pk>/favorite/", FavoriteAPIView.as_view(), name="card_favorite"), # POST/DELETE /api/cards/{pk}/favorite/
+    path("favorites/me/", MyFavoritesListAPIView.as_view(), name="my_favorites"), # GET /api/cards/favorites/me/
 
     # --- Рейтинг ---
     path("<int:pk>/rate/", RateCardView.as_view(), name="card_rate"),
@@ -38,4 +47,6 @@ urlpatterns = [
 
     # --- Поиск ---
     path("search/", CardSearchView.as_view(), name="card_search"),
+
+    
 ]
