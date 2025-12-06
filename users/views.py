@@ -4,8 +4,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema
 
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer
+from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, ReferralSerializer
+from rest_framework import generics, permissions
+from .models import Referral
 
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+import uuid
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -67,3 +73,19 @@ class MeView(APIView):
             return Response({"detail": "Not authenticated"}, status=401)
 
         return Response(UserSerializer(request.user).data)
+
+class ReferralListView(generics.ListAPIView):
+    serializer_class = ReferralSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Referral.objects.filter(referrer=self.request.user)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_referral_link(request):
+    user = request.user
+    # Генерируем уникальный код (можно хранить в User или просто использовать)
+    code = str(uuid.uuid4())
+    link = f"https://dreamhouse05.com/register/?ref={code}"
+    return Response({"referral_link": link})
