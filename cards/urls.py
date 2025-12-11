@@ -16,43 +16,35 @@ from .views import (
     CardQuestionListView,
     CardQuestionAnswerView,
 )
+from .views_ai import (
+    DiscountRequestCreateView,
+    UserDiscountRequestsView,
+    GetRecommendationsView,
+    AIChatView,
+    ChatHistoryView,
+    RateAIResponseView,
+)
 
 urlpatterns = [
-    # --- Список карточек и фильтры ---
-    path("", CardListView.as_view(), name="cards_list"),  # GET /api/cards/
-    path("filter/", CardFilterPostView.as_view(), name="cards_filter_post"),  # POST /api/cards/filter/
+    path("", CardListView.as_view(), name="cards_list"),
+    path("filter/", CardFilterPostView.as_view(), name="cards_filter_post"),
     path("<int:pk>/", CardDetailView.as_view(), name="card_detail"),
-
-    # --- Избранное ---
-    path("<int:pk>/favorite/", FavoriteAPIView.as_view(), name="card_favorite"),  # POST/DELETE
-    path("favorites/me/", MyFavoritesListAPIView.as_view(), name="my_favorites"),  # GET
-
-    # --- Рейтинг ---
-    path("<int:pk>/rate/", RateCardView.as_view(), name="card_rate"),  # POST
-
-    # --- Заявка на звонок ---
-    path("<int:pk>/call_request/", CallRequestCreateView.as_view(), name="call_request"),  # POST
-
-    # --- Видео ---
-    path("<int:pk>/videos/add/", CardVideoCreateView.as_view(), name="card_video_add"),  # POST
-
-    # --- Отзывы ---
-    path("<int:pk>/reviews/add/", CardReviewCreateView.as_view(), name="card_review_add"),  # POST
-    path("reviews/<int:id>/", CardReviewDetailView.as_view(), name="card_review_detail"),  # GET
-
-   # --- Вопросы и ответы ---
-# Создать вопрос для конкретной карточки
-path("<int:pk>/questions/add/", CardQuestionCreateView.as_view(), name="card_question_add"),  # POST
-
-# Получить все вопросы (можно фильтровать по карточке через query param ?card=ID)
-path("questions/", CardQuestionListView.as_view(), name="card_question_list"),  # GET
-
-# Получить вопрос по ID
-path("questions/<int:id>/", CardQuestionDetailView.as_view(), name="card_question_detail"),  # GET
-
-# Ответить на вопрос (только разработчик/админ)
-path("questions/<int:pk>/answer/", CardQuestionAnswerView.as_view(), name="card_question_answer"),  # PATCH/PUT
-
-    # --- Поиск ---
-    path("search/", CardSearchView.as_view(), name="card_search"),  # GET /api/cards/search/?q=
+    path("<int:pk>/favorite/", FavoriteAPIView.as_view(), name="card_favorite"),
+    path("favorites/me/", MyFavoritesListAPIView.as_view(), name="my_favorites"),
+    path("<int:pk>/rate/", RateCardView.as_view(), name="card_rate"),
+    path("<int:pk>/call_request/", CallRequestCreateView.as_view(), name="call_request"),
+    path("<int:pk>/videos/add/", CardVideoCreateView.as_view(), name="card_video_add"),
+    path("<int:pk>/reviews/add/", CardReviewCreateView.as_view(), name="card_review_add"),
+    path("reviews/<int:id>/", CardReviewDetailView.as_view(), name="card_review_detail"),
+    path("<int:pk>/questions/add/", CardQuestionCreateView.as_view(), name="card_question_add"),
+    path("questions/", CardQuestionListView.as_view(), name="card_question_list"),
+    path("questions/<int:id>/", CardQuestionDetailView.as_view(), name="card_question_detail"),
+    path("questions/<int:pk>/answer/", CardQuestionAnswerView.as_view(), name="card_question_answer"),
+    path("search/", CardSearchView.as_view(), name="card_search"),
+    path("<int:pk>/discount/", DiscountRequestCreateView.as_view(), name="discount_request"),
+    path("discounts/me/", UserDiscountRequestsView.as_view(), name="my_discounts"),
+    path("recommendations/", GetRecommendationsView.as_view(), name="recommendations"),
+    path("ai/chat/", AIChatView.as_view(), name="ai_chat"),
+    path("ai/history/", ChatHistoryView.as_view(), name="chat_history"),
+    path("ai/chat/<int:pk>/rate/", RateAIResponseView.as_view(), name="rate_ai_response"),
 ]

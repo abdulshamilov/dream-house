@@ -2,9 +2,8 @@ from rest_framework import serializers
 from .models import (
     Card, CardImage, CardVideo, CardDocument, CallRequest,
     CardReview, CardQuestion, SearchHistory,
-    Favorite  
+    Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant
 )
-# 🔑 НОВОЕ: Импорт модели Developer из приложения developers
 from developers.models import Developer
 
 # -------------------------------
@@ -141,3 +140,51 @@ class CardQuestionSerializer(serializers.ModelSerializer):
         model = CardQuestion
         fields = ['id', 'card', 'user', 'question', 'answer', 'created_at']
         read_only_fields = ['card', 'user', 'answer', 'created_at']
+
+
+# ==================== СКИДКИ ====================
+class DiscountRequestSerializer(serializers.ModelSerializer):
+    discount_percent = serializers.ReadOnlyField()
+    card_title = serializers.CharField(source='card.title', read_only=True)
+    user_phone = serializers.CharField(source='user.phone_number', read_only=True)
+    
+    class Meta:
+        model = DiscountRequest
+        fields = [
+            'id', 'card', 'card_title', 'user', 'user_phone',
+            'original_price', 'requested_price', 'discount_percent',
+            'status', 'message', 'admin_comment', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['user', 'original_price', 'discount_percent', 'created_at', 'updated_at', 'admin_comment']
+
+
+# ==================== РЕКОМЕНДАЦИИ ====================
+class RecommendationSerializer(serializers.ModelSerializer):
+    card = CardSerializer(read_only=True)
+    
+    class Meta:
+        model = Recommendation
+        fields = ['id', 'card', 'score', 'reason', 'created_at']
+        read_only_fields = ['id', 'card', 'score', 'reason', 'created_at']
+
+
+# ==================== AI АССИСТЕНТ ====================
+class ChatMessageSerializer(serializers.ModelSerializer):
+    referenced_cards = CardSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ChatMessage
+        fields = [
+            'id', 'message', 'response', 'referenced_cards',
+            'tokens_used', 'is_helpful', 'created_at'
+        ]
+        read_only_fields = ['response', 'referenced_cards', 'tokens_used', 'created_at']
+
+
+class ChatRequestSerializer(serializers.Serializer):
+    """Serializer для отправки сообщения AI"""
+    message = serializers.CharField(max_length=2000, required=True)
+    user_preferences = serializers.JSONField(
+        required=False,
+        help_text="Предпочтения пользователя: {city: int, price_min: int, price_max: int, rooms: int и т.д.}"
+    )
