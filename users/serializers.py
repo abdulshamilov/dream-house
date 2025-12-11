@@ -1,18 +1,26 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from .models import Referral
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=6)
+    password_confirm = serializers.CharField(write_only=True, min_length=6)
 
     class Meta:
         model = User
-        fields = ("phone_number", "name", "password")
+        fields = ("phone_number", "name", "password", "password_confirm", "profile_photo")
+
+    def validate(self, data):
+        if data['password'] != data['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match"})
+        return data
 
     def create(self, validated_data):
+        validated_data.pop('password_confirm')
         password = validated_data.pop("password")
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
@@ -20,15 +28,84 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
-class LoginSerializer(serializers.Serializer):
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Custom serializer that supports login by phone_number"""
+    
     phone_number = serializers.CharField()
     password = serializers.CharField(write_only=True)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Remove the default 'username' field
+        if 'username' in self.fields:
+            del self.fields['username']
+    
+    def validate(self, attrs):
+        phone_number = attrs.get('phone_number')
+        password = attrs.get('password')
+        
+        if not password:
+            raise serializers.ValidationError({'password': 'This field is required.'})
+        
+        if not phone_number:
+            raise serializers.ValidationError('phone_number is required.')
+        
+        # Authenticate with phone_number
+        user = authenticate(phone_number=phone_number, password=password)
+        
+        if not user:
+            raise serializers.ValidationError('Invalid credentials')
+        
+        if not user.is_active:
+            raise serializers.ValidationError('User account is disabled')
+        
+        # Get tokens for the user
+        refresh = self.get_token(user)
+        
+        data = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        }
+        
+        return data
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Request password reset by phone number"""
+    phone_number = serializers.CharField(required=True)
+    
+    def validate_phone_number(self, value):
+        try:
+            user = User.objects.get(phone_number=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User with this phone number not found")
+        return value
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Confirm password reset with token and new password"""
+    phone_number = serializers.CharField(required=True)
+    otp = serializers.CharField(required=True)  # One-time password/code
+    new_password = serializers.CharField(write_only=True, min_length=6, required=True)
+    new_password_confirm = serializers.CharField(write_only=True, min_length=6, required=True)
+    
+    def validate(self, data):
+        if data['new_password'] != data['new_password_confirm']:
+            raise serializers.ValidationError({"new_password_confirm": "Passwords do not match"})
+        return data
+
+
+class TokenSerializer(serializers.Serializer):
+    """Serializer for token response"""
+    access = serializers.CharField()
+    refresh = serializers.CharField()
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "phone_number", "name")
+        fields = ("id", "phone_number", "name", "profile_photo")
+
 
 class ReferralSerializer(serializers.ModelSerializer):
     referred_name = serializers.CharField(source='referred.name', read_only=True)

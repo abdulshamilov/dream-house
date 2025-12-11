@@ -122,6 +122,11 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'users.backends.PhoneBackend',
+    'django.contrib.auth.backends.ModelBackend',  # Default backend for admin
+]
+
 # --- Localization ---
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'

@@ -6,7 +6,8 @@ from drf_spectacular.views import (
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiExample
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from users.serializers import CustomTokenObtainPairSerializer
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -23,11 +24,11 @@ from django.conf.urls.static import static
         "- **access** — используется для доступа к защищённым эндпоинтам (жизнь ~5–15 мин)\n"
         "- **refresh** — используется для обновления access-токена, когда он истечёт.\n\n"
         "Поля запроса:\n"
-        "- `email` или `phone_number`\n"
+        "- `phone_number` или `email`\n"
         "- `password`\n\n"
         "**Важно:** отправляй `Authorization: Bearer <access>` в заголовке запроса для защищённых методов."
     ),
-    request=TokenObtainPairSerializer,
+    request=CustomTokenObtainPairSerializer,
     responses={
         200: {
             "application/json": {
@@ -48,6 +49,7 @@ from django.conf.urls.static import static
 )
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Получение пары токенов"""
+    serializer_class = CustomTokenObtainPairSerializer
 
 
 @extend_schema(
