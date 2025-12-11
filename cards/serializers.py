@@ -188,3 +188,9 @@ class ChatRequestSerializer(serializers.Serializer):
         required=False,
         help_text="Предпочтения пользователя: {city: int, price_min: int, price_max: int, rooms: int и т.д.}"
     )
+    mode = serializers.ChoiceField(
+        choices=['search', 'free'],
+        default='search',
+        required=False,
+        help_text="'search' - поиск квартир в БД, 'free' - обычный чат без поиска"
+    )

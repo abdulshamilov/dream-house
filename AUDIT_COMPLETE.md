@@ -168,8 +168,8 @@ python manage.py runserver
 ### Обычный запуск
 ```powershell
 python manage.py runserver
-# Откройте http://localhost:8000/admin/ — админка
-# http://localhost:8000/api/docs/ — документация API
+# Откройте https://api.dreamhouse05.com/admin/ — админка
+# https://api.dreamhouse05.com/api/docs/ — документация API
 ```
 
 ---

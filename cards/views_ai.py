@@ -113,10 +113,13 @@ class AIChatView(generics.GenericAPIView):
         from .ai_service import AIAssistantService
         ai_service = AIAssistantService()
         
+        mode = serializer.validated_data.get('mode', 'search')
+        
         result = ai_service.chat(
             user_message=serializer.validated_data['message'],
             user_preferences=serializer.validated_data.get('user_preferences', {}),
-            user_id=request.user.id
+            user_id=request.user.id,
+            mode=mode
         )
         
         if result.get('success'):

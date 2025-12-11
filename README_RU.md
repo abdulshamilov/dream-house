@@ -26,9 +26,9 @@ python manage.py runserver
 ```
 
 Откройте в браузере:
-- API docs: http://localhost:8000/api/docs/
-- Админка: http://localhost:8000/admin/
-- API: http://localhost:8000/api/
+- API docs: https://api.dreamhouse05.com/api/docs/
+- Админка: https://api.dreamhouse05.com/admin/
+- API: https://api.dreamhouse05.com/api/
 
 ---
 

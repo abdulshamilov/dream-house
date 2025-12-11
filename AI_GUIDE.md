@@ -46,9 +46,9 @@ fields:
 ```python
 fields:
 - name (название ассистента)
-- api_provider (openai, anthropic, disabled)
+- api_provider (openai, anthropic, deepseek, disabled)
 - api_key (сохраняется в БД, но лучше использовать env переменные)
-- model_name (gpt-4, claude-3-opus и т.д.)
+- model_name (gpt-4, claude-3-opus, deepseek-chat, deepseek-reasoner и т.д.)
 - system_prompt (инструкция для AI)
 - temperature (0-1, творческость ответа)
 - max_tokens (максимальная длина ответа)
@@ -172,8 +172,6 @@ PATCH /api/cards/ai/chat/<id>/rate/
 }
 ```
 
----
-
 ## ⚙️ Настройка API ключей
 
 ### Вариант 1: Переменные окружения (рекомендуется)
@@ -181,13 +179,17 @@ PATCH /api/cards/ai/chat/<id>/rate/
 # .env или ваш способ установки переменных
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
+export DEEPSEEK_API_KEY="sk-..."
 ```
 
 ### Вариант 2: Через администраторский интерфейс
 1. Откройте `/admin/`
 2. Найдите "AI Ассистент"
 3. Создайте/отредактируйте запись
-4. Выберите провайдера (OpenAI или Anthropic)
+4. Выберите провайдера:
+   - OpenAI (GPT-4)
+   - Anthropic (Claude)
+   - DeepSeek (R1) ⭐ Рекомендуется
 5. Введите API ключ (или установите переменную окружения)
 
 ---
@@ -203,7 +205,10 @@ pip install openai
 # Для Anthropic (Claude)
 pip install anthropic
 
-# Обе вместе (если не знаете, что будете использовать)
+# DeepSeek использует OpenAI SDK
+pip install openai
+
+# Все вместе (рекомендуется)
 pip install openai anthropic
 ```
 
@@ -296,13 +301,13 @@ anthropic==0.7.0
 
 ### Пример 1: Получить рекомендации
 ```bash
-curl -X GET http://localhost:8000/api/cards/recommendations/ \
+curl -X GET https://api.dreamhouse05.com/api/cards/recommendations/ \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
 ### Пример 2: Запросить скидку
 ```bash
-curl -X POST http://localhost:8000/api/cards/2/discount/ \
+curl -X POST https://api.dreamhouse05.com/api/cards/2/discount/ \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -313,7 +318,7 @@ curl -X POST http://localhost:8000/api/cards/2/discount/ \
 
 ### Пример 3: Chat с AI
 ```bash
-curl -X POST http://localhost:8000/api/cards/ai/chat/ \
+curl -X POST https://api.dreamhouse05.com/api/cards/ai/chat/ \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{

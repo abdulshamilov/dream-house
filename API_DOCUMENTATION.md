@@ -1,5 +1,9 @@
 # 🔌 Dream House API - Полная документация
 
+> 📚 **Интерактивная документация доступна**: https://api.dreamhouse05.com/api/docs/
+> 
+> Все endpoints, параметры и примеры можно протестировать прямо там!
+
 ## 📚 Содержание
 1. [Аутентификация](#authentication)
 2. [Скидки](#discounts)
@@ -18,7 +22,7 @@ Authorization: Bearer <your_token>
 
 Получить токен:
 ```bash
-curl -X POST http://localhost:8000/api/token/login/ \
+curl -X POST https://api.dreamhouse05.com/api/token/login/ \
   -H "Content-Type: application/json" \
   -d '{
     "phone": "+79999999999",
@@ -40,7 +44,7 @@ curl -X POST http://localhost:8000/api/token/login/ \
 
 **Пример запроса:**
 ```bash
-curl -X POST http://localhost:8000/api/cards/5/discount/ \
+curl -X POST https://api.dreamhouse05.com/api/cards/5/discount/ \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -85,7 +89,7 @@ curl -X POST http://localhost:8000/api/cards/5/discount/ \
 
 **Пример запроса:**
 ```bash
-curl -X GET "http://localhost:8000/api/cards/discounts/me/?status=pending" \
+curl -X GET "https://api.dreamhouse05.com/api/cards/discounts/me/?status=pending" \
   -H "Authorization: Bearer TOKEN"
 ```
 
@@ -143,7 +147,7 @@ curl -X GET "http://localhost:8000/api/cards/discounts/me/?status=pending" \
 
 **Пример запроса:**
 ```bash
-curl -X GET http://localhost:8000/api/cards/recommendations/ \
+curl -X GET https://api.dreamhouse05.com/api/cards/recommendations/ \
   -H "Authorization: Bearer TOKEN"
 ```
 
@@ -221,28 +225,32 @@ curl -X GET http://localhost:8000/api/cards/recommendations/ \
 
 ## <a name="ai-chat"></a>🤖 API AI Чата
 
-### Отправить сообщение AI
+AI Ассистент поддерживает два режима работы:
+- **`search`** (по умолчанию) - AI ищет квартиры в БД и рекомендует их
+- **`free`** - обычный чат без поиска в БД
+
+### Отправить сообщение AI (режим поиска)
 **POST** `/api/cards/ai/chat/`
 
 **Тело запроса:**
 ```json
 {
-  "message": "Строка сообщения (макс 2000 символов)",
+  "message": "Найди мне квартиру в Махачкале",
+  "mode": "search",
   "user_preferences": {
     "city": 1,
     "price_min": 1000000,
     "price_max": 5000000,
     "rooms": 3,
-    "house_type": "apartment",
-    "area_min": 50,
-    "area_max": 150
+    "house_type": "apartment"
   }
 }
 ```
 
 **Параметры:**
 - `message` (string, обязательно) - вопрос или запрос
-- `user_preferences` (object, опционально) - предпочтения для поиска:
+- `mode` (string, опционально) - `'search'` или `'free'` (по умолчанию `'search'`)
+- `user_preferences` (object, опционально) - предпочтения для поиска (только для режима `'search'`):
   - `city` (int) - ID города
   - `price_min` (int) - минимальная цена
   - `price_max` (int) - максимальная цена
@@ -251,9 +259,32 @@ curl -X GET http://localhost:8000/api/cards/recommendations/ \
   - `area_min` (int) - минимальная площадь
   - `area_max` (int) - максимальная площадь
 
-**Пример запроса:**
+**Пример запроса (поиск квартир):**
 ```bash
-curl -X POST http://localhost:8000/api/cards/ai/chat/ \
+curl -X POST https://api.dreamhouse05.com/api/cards/ai/chat/ \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Найди мне 3-комнатную квартиру в Махачкале",
+    "mode": "search",
+    "user_preferences": {
+      "city": 1,
+      "rooms": 3,
+      "price_max": 3500000
+    }
+  }'
+```
+
+**Пример запроса (обычный чат):**
+```bash
+curl -X POST https://api.dreamhouse05.com/api/cards/ai/chat/ \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Как лучше выбирать недвижимость?",
+    "mode": "free"
+  }'
+```
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -308,7 +339,7 @@ curl -X POST http://localhost:8000/api/cards/ai/chat/ \
 
 **Пример запроса:**
 ```bash
-curl -X GET "http://localhost:8000/api/cards/ai/history/?page=1&limit=10" \
+curl -X GET "https://api.dreamhouse05.com/api/cards/ai/history/?page=1&limit=10" \
   -H "Authorization: Bearer TOKEN"
 ```
 
@@ -358,7 +389,7 @@ curl -X GET "http://localhost:8000/api/cards/ai/history/?page=1&limit=10" \
 
 **Пример запроса:**
 ```bash
-curl -X PATCH http://localhost:8000/api/cards/ai/chat/42/rate/ \
+curl -X PATCH https://api.dreamhouse05.com/api/cards/ai/chat/42/rate/ \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -410,12 +441,13 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# Отправить сообщение AI
+# Отправить сообщение AI (режим поиска)
 response = requests.post(
-    "http://localhost:8000/api/cards/ai/chat/",
+    "https://api.dreamhouse05.com/api/cards/ai/chat/",
     headers=headers,
     json={
         "message": "Найди квартиру в Махачкале",
+        "mode": "search",
         "user_preferences": {
             "city": 1,
             "rooms": 3,
@@ -426,9 +458,21 @@ response = requests.post(
 
 print(response.json())
 
+# Отправить сообщение AI (обычный чат)
+response = requests.post(
+    "https://api.dreamhouse05.com/api/cards/ai/chat/",
+    headers=headers,
+    json={
+        "message": "Как лучше выбирать недвижимость?",
+        "mode": "free"
+    }
+)
+
+print(response.json())
+
 # Получить историю
 history = requests.get(
-    "http://localhost:8000/api/cards/ai/history/",
+    "https://api.dreamhouse05.com/api/cards/ai/history/",
     headers=headers
 )
 
@@ -436,7 +480,7 @@ print(history.json())
 
 # Оценить ответ
 rating = requests.patch(
-    "http://localhost:8000/api/cards/ai/chat/42/rate/",
+    "https://api.dreamhouse05.com/api/cards/ai/chat/42/rate/",
     headers=headers,
     json={"is_helpful": True}
 )
@@ -452,12 +496,13 @@ const headers = {
   "Content-Type": "application/json"
 };
 
-// Отправить сообщение
-fetch("http://localhost:8000/api/cards/ai/chat/", {
+// Отправить сообщение (режим поиска)
+fetch("https://api.dreamhouse05.com/api/cards/ai/chat/", {
   method: "POST",
   headers: headers,
   body: JSON.stringify({
     message: "Найди квартиру в Махачкале",
+    mode: "search",
     user_preferences: {
       city: 1,
       rooms: 3,
@@ -468,15 +513,27 @@ fetch("http://localhost:8000/api/cards/ai/chat/", {
 .then(r => r.json())
 .then(data => console.log(data));
 
+// Отправить сообщение (обычный чат)
+fetch("https://api.dreamhouse05.com/api/cards/ai/chat/", {
+  method: "POST",
+  headers: headers,
+  body: JSON.stringify({
+    message: "Как лучше выбирать недвижимость?",
+    mode: "free"
+  })
+})
+.then(r => r.json())
+.then(data => console.log(data));
+
 // Получить историю
-fetch("http://localhost:8000/api/cards/ai/history/", {
+fetch("https://api.dreamhouse05.com/api/cards/ai/history/", {
   headers: headers
 })
 .then(r => r.json())
 .then(data => console.log(data));
 
 // Оценить ответ
-fetch("http://localhost:8000/api/cards/ai/chat/42/rate/", {
+fetch("https://api.dreamhouse05.com/api/cards/ai/chat/42/rate/", {
   method: "PATCH",
   headers: headers,
   body: JSON.stringify({ is_helpful: true })
@@ -501,19 +558,29 @@ fetch("http://localhost:8000/api/cards/ai/chat/42/rate/", {
 ### Быстрый тест:
 ```bash
 # 1. Получить токен
-TOKEN=$(curl -X POST http://localhost:8000/api/token/login/ \
+TOKEN=$(curl -X POST https://api.dreamhouse05.com/api/token/login/ \
   -H "Content-Type: application/json" \
   -d '{"phone": "+79999999999", "password": "pass"}' \
   | jq -r '.access')
 
-# 2. Протестировать AI чат
-curl -X POST http://localhost:8000/api/cards/ai/chat/ \
+# 2. Протестировать AI чат (search mode - с поиском недвижимости)
+curl -X POST https://api.dreamhouse05.com/api/cards/ai/chat/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"message": "Привет!"}'
+  -d '{
+    "message": "Покажи мне квартиры в Москве",
+    "mode": "search",
+    "user_preferences": {"city": "Moscow", "house_type": "apartment"}
+  }'
 
-# 3. Получить рекомендации
-curl -X GET http://localhost:8000/api/cards/recommendations/ \
+# 3. Протестировать AI чат (free mode - обычный чат)
+curl -X POST https://api.dreamhouse05.com/api/cards/ai/chat/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Привет!", "mode": "free"}'
+
+# 4. Получить рекомендации
+curl -X GET https://api.dreamhouse05.com/api/cards/recommendations/ \
   -H "Authorization: Bearer $TOKEN"
 ```
 

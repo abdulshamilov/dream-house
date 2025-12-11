@@ -297,6 +297,7 @@ class AIAssistant(models.Model):
         choices=[
             ('openai', 'OpenAI (GPT-4)'),
             ('anthropic', 'Anthropic (Claude)'),
+            ('deepseek', 'DeepSeek (R1)'),
             ('disabled', 'Отключен'),
         ],
         default='openai'

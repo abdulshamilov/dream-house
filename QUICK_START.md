@@ -21,14 +21,22 @@ pip install -r requirements.txt
 2. Создать ключ
 3. Скопировать: `sk-ant-...`
 
+**Вариант C: DeepSeek (R1) - 💜 Рекомендуется**
+1. Перейти на https://platform.deepseek.com/
+2. Создать ключ
+3. Скопировать: `sk-...` (тот же формат как у OpenAI)
+
 ### Шаг 3: Установить переменную окружения (30 сек)
 
 ```bash
-# Windows PowerShell
+# Windows PowerShell - OpenAI
 $env:OPENAI_API_KEY = "sk-your-key-here"
 
 # или для Anthropic
 $env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+
+# или для DeepSeek
+$env:DEEPSEEK_API_KEY = "sk-your-deepseek-key"
 
 # Linux/Mac
 export OPENAI_API_KEY="sk-your-key-here"
@@ -42,14 +50,20 @@ python manage.py runserver
 
 ### Шаг 5: Настроить в админке (1.5 мин)
 
-1. Открыть http://localhost:8000/admin/
+1. Открыть https://api.dreamhouse05.com/admin/
 2. Войти с admin/admin
 3. Найти "AI Ассистент"
 4. Создать новую запись:
    - **Имя:** AI Помощник
-   - **API провайдер:** OpenAI (или Anthropic)
+   - **API провайдер:** 
+     - OpenAI (gpt-4)
+     - Anthropic (claude-3-opus)
+     - **DeepSeek (deepseek-chat или deepseek-reasoner)** ⭐
    - **API ключ:** (оставить пустым - будет использована переменная окружения)
-   - **Модель:** gpt-4 (или claude-3-opus)
+   - **Модель:** 
+     - `gpt-4` (OpenAI)
+     - `claude-3-opus` (Anthropic)
+     - `deepseek-chat` или `deepseek-reasoner` (DeepSeek)
    - **Temperature:** 0.7
    - **Max tokens:** 500
    - **Активно:** ☑ (галочка)
@@ -63,24 +77,24 @@ python manage.py runserver
 
 ```bash
 # 1. Получить токен
-$TOKEN = (curl -X POST http://localhost:8000/api/token/login/ `
+$TOKEN = (curl -X POST https://api.dreamhouse05.com/api/token/login/ `
   -Headers @{'Content-Type'='application/json'} `
   -Body '{"phone": "+79999999999", "password": "your_password"}' | ConvertFrom-Json).access
 
 # 2. Тестировать AI
-curl -X POST http://localhost:8000/api/cards/ai/chat/ `
+curl -X POST https://api.dreamhouse05.com/api/cards/ai/chat/ `
   -Headers @{'Authorization'="Bearer $TOKEN"; 'Content-Type'='application/json'} `
   -Body '{"message":"Привет! Найди мне квартиру в Махачкале"}'
 
 # 3. История
-curl -X GET http://localhost:8000/api/cards/ai/history/ `
+curl -X GET https://api.dreamhouse05.com/api/cards/ai/history/ `
   -Headers @{'Authorization'="Bearer $TOKEN"}
 ```
 
 ### Через Postman
 
 1. **Создать новый запрос**
-2. **URL:** `POST http://localhost:8000/api/cards/ai/chat/`
+2. **URL:** `POST https://api.dreamhouse05.com/api/cards/ai/chat/`
 3. **Headers:** 
    - `Authorization: Bearer TOKEN`
    - `Content-Type: application/json`

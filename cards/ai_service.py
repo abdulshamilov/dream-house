@@ -1,5 +1,5 @@
 """
-AI Service для работы с Claude/GPT API
+AI Service для работы с OpenAI, Anthropic и DeepSeek API
 Интегрируется с базой данных карточек недвижимости
 """
 
@@ -51,6 +51,10 @@ class AIAssistantService:
             elif self.config.api_provider == 'anthropic':
                 import anthropic
                 return anthropic.Anthropic(api_key=api_key)
+            elif self.config.api_provider == 'deepseek':
+                from openai import OpenAI
+                # DeepSeek использует OpenAI-совместимый API
+                return OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
         except ImportError as e:
             logger.error(f"{self.config.api_provider.title()} library not installed: {e}")
             return None
@@ -112,14 +116,15 @@ class AIAssistantService:
             'parking': card.get_parking_display() if hasattr(card, 'get_parking_display') else card.parking,
         }
 
-    def chat(self, user_message: str, user_preferences: Optional[Dict] = None, user_id: Optional[int] = None) -> Dict:
+    def chat(self, user_message: str, user_preferences: Optional[Dict] = None, user_id: Optional[int] = None, mode: str = 'search') -> Dict:
         """
         Отправить сообщение AI и получить ответ
         
         Args:
             user_message: Сообщение от пользователя
-            user_preferences: Предпочтения пользователя
+            user_preferences: Предпочтения пользователя для режима поиска
             user_id: ID пользователя для сохранения истории
+            mode: 'search' - поиск квартир, 'free' - обычный чат без поиска
         
         Returns:
             Словарь с ответом и информацией
@@ -131,11 +136,17 @@ class AIAssistantService:
             }
 
         try:
-            # Поиск релевантных карточек
-            search_results = self.search_cards(user_message, user_preferences)
+            search_results = []
+            context = user_message
             
-            # Построить контекст для AI
-            context = self._build_context(user_message, search_results, user_preferences)
+            # Режим поиска квартир - ищет в БД
+            if mode == 'search':
+                search_results = self.search_cards(user_message, user_preferences)
+                context = self._build_context(user_message, search_results, user_preferences)
+            
+            # Режим свободного чата - просто отправляем сообщение
+            elif mode == 'free':
+                context = user_message
             
             # Отправить запрос к API
             response_data = self._call_api(context)
@@ -155,7 +166,8 @@ class AIAssistantService:
                     'success': True,
                     'response': response_data['response'],
                     'tokens_used': response_data.get('tokens_used', 0),
-                    'referenced_cards': [card['id'] for card in search_results]
+                    'referenced_cards': [card['id'] for card in search_results],
+                    'mode': mode
                 }
             else:
                 return {
@@ -190,6 +202,7 @@ class AIAssistantService:
         api_methods = {
             'openai': self._call_openai,
             'anthropic': self._call_anthropic,
+            'deepseek': self._call_deepseek,
         }
         
         api_method = api_methods.get(self.config.api_provider)
@@ -252,6 +265,29 @@ class AIAssistantService:
                 'success': False,
                 'error': str(e)
             }
+
+    def _call_deepseek(self, context: str) -> Dict:
+        """Вызвать DeepSeek API (OpenAI-совместимый)"""
+        try:
+            message = self.client.chat.completions.create(
+                model=self.config.model_name,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                messages=[
+                    {"role": "system", "content": self.config.system_prompt},
+                    {"role": "user", "content": context}
+                ]
+            )
+
+            return {
+                'success': True,
+                'response': message.choices[0].message.content,
+                'tokens_used': message.usage.total_tokens
+            }
+
+        except Exception as e:
+            logger.exception(f"DeepSeek API error: {e}")
+            return {'success': False, 'error': str(e)}
 
     def _save_to_history(self, user_id: int, message: str, response: str, cards: List[Dict], tokens: int):
         """Сохранить чат в историю"""
