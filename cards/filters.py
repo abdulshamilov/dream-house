@@ -1,10 +1,17 @@
 import django_filters
+from django.db.models import Q
 from .models import Card
 
 
 class CardFilter(django_filters.FilterSet):
+    # Поиск по тексту
+    search = django_filters.CharFilter(
+        method='filter_search',
+        label='Поиск по названию, описанию, адресу'
+    )
+    
     house_type = django_filters.ChoiceFilter(choices=Card.HOUSE_TYPE_CHOICES)
-    city = django_filters.ChoiceFilter(choices=Card.CITY_CHOICES)  # теперь это идентификаторы
+    city = django_filters.ChoiceFilter(choices=Card.CITY_CHOICES)
     building_material = django_filters.ChoiceFilter(choices=Card.BUILDING_MATERIAL_CHOICES)
     category = django_filters.ChoiceFilter(choices=Card.CATEGORY_CHOICES)
     elevator = django_filters.ChoiceFilter(choices=Card.ELEVATOR_CHOICES)
@@ -22,6 +29,7 @@ class CardFilter(django_filters.FilterSet):
     class Meta:
         model = Card
         fields = [
+            'search',
             'house_type', 'city', 'building_material', 'category',
             'elevator', 'parking', 'balcony',
             'price_min', 'price_max',
@@ -29,3 +37,13 @@ class CardFilter(django_filters.FilterSet):
             'area_min', 'area_max',
             'floors_min', 'floors_max'
         ]
+    
+    def filter_search(self, queryset, name, value):
+        """Поиск по названию, описанию и адресу."""
+        if value:
+            return queryset.filter(
+                Q(title__icontains=value) |
+                Q(description__icontains=value) |
+                Q(address__icontains=value)
+            )
+        return queryset

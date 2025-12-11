@@ -1,148 +1,111 @@
-import os
-from pathlib import Path
 
+from pathlib import Path
+from datetime import timedelta
+import os
+
+# --- Paths ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-your-secret-here"
+# --- Security ---
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "replace_me_in_prod")
+DEBUG = True  # Для разработки; отключить в production
+ALLOWED_HOSTS = [
+    'dreamhouse05.com',
+    'www.dreamhouse05.com',
+    'api.dreamhouse05.com',
+    'admin.dreamhouse05.com',
+    'localhost',
+    '127.0.0.1',
+    '188.120.245.100',
+]
 
-DEBUG = True
-
-ALLOWED_HOSTS = ["*"]
-
-
-# ------------------------
-# Applications
-# ------------------------
-
+# --- Applications ---
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
 
-    'channels',
-
-
-    # Third-party
-    "rest_framework",
-    "corsheaders",
+    'rest_framework',
+    'rest_framework_simplejwt',
     'drf_spectacular',
     'drf_spectacular_sidecar',
 
-    # Your apps
-    "users",
-    "cards",
-    "developers",
-    "notifications"
+    'users',
+    'cards',
+    'developers',
+    'notifications',
     
 ]
 
-
-# ------------------------
-# Middleware
-# ------------------------
-
+# --- Middleware ---
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# --- URLS & WSGI ---
+ROOT_URLCONF = 'config.urls'
+WSGI_APPLICATION = 'config.wsgi.application'
 
-# ------------------------
-# URLs & WSGI
-# ------------------------
+# --- Custom User ---
+AUTH_USER_MODEL = "users.User"
 
-ROOT_URLCONF = "config.urls"
-
-WSGI_APPLICATION = "config.wsgi.application"
-
-ASGI_APPLICATION = 'config.asgi.application'
-
-# Redis для Channels
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+# --- Templates ---
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
         },
     },
-}   
-# ------------------------
-# Database (SQLite)
-# ------------------------
+]
 
+# --- Database ---
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
-
-# ------------------------
-# Auth
-# ------------------------
-
-AUTH_USER_MODEL = "users.User"
-
-AUTHENTICATION_BACKENDS = [
-    "users.backends.PhoneBackend",
-    "django.contrib.auth.backends.ModelBackend",
-]
-
-
-# ------------------------
-# REST Framework
-# ------------------------
-
+# --- REST Framework ---
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
-    ]
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ),
 }
 
-
-# ------------------------
-# Password validation
-# ------------------------
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+# --- Swagger / Spectacular ---
+SPECTACULAR_SETTINGS = {
+    "TITLE": "API FOR Dream House",
+    "DESCRIPTION": "API для Dream House",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": DEBUG,
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "persistAuthorization": True,
+        "displayRequestDuration": True,
     },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-]
-
-
-# ------------------------
-# Static files
-# ------------------------
-
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
-
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
-
-# ------------------------
-# CORS
-# ------------------------
-
+}
 CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = [
@@ -151,36 +114,30 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
 ]
 
-
-# ------------------------
-# Templates
-# ------------------------
-
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
+# --- Password validation ---
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-
-# ------------------------
-# Internationalization
-# ------------------------
-
-LANGUAGE_CODE = "ru-ru"
-
-TIME_ZONE = "Europe/Moscow"
-
+# --- Localization ---
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
 USE_I18N = True
-
 USE_TZ = True
+
+# --- Static files ---
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'  # ВАЖНО: 'staticfiles'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+# --- Default primary key ---
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- JWT ---
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}

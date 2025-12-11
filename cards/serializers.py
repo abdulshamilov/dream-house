@@ -5,8 +5,7 @@ from .models import (
     Favorite  
 )
 # 🔑 НОВОЕ: Импорт модели Developer из приложения developers
-from developers.models import Developer 
-from .models import CardQuestion
+from developers.models import Developer
 
 # -------------------------------
 # 🔑 НОВЫЙ: Сериализатор для Застройщика (для вложения)

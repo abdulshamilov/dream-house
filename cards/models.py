@@ -73,6 +73,17 @@ class Card(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['title']),
+            models.Index(fields=['city']),
+            models.Index(fields=['house_type']),
+            models.Index(fields=['price']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['city', 'house_type']),
+        ]
+
     def __str__(self):
         return self.title
     
@@ -145,7 +156,8 @@ class SearchHistory(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='search_history', on_delete=models.CASCADE)
     query = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
-# cards/models.py (добавьте в конец)
+
+
 class Favorite(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -160,16 +172,8 @@ class Favorite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'card') # Один пользователь может добавить одну карточку только один раз
+        unique_together = ('user', 'card')
         ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.user.phone_number} added {self.card.title} to favorites"
-
-class CardQuestion(models.Model):
-    card = models.ForeignKey(Card, related_name='questions', on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    question = models.TextField()
-    answer = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    answered_at = models.DateTimeField(null=True, blank=True)

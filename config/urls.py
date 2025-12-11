@@ -80,7 +80,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 class CustomTokenRefreshView(TokenRefreshView):
     """Обновление токена"""
 
-
+                                     
 urlpatterns = [
     path("admin/", admin.site.urls),
 
@@ -103,6 +103,8 @@ urlpatterns = [
 
     
     path('api/notifications/', include('notifications.urls')),
+
+
 
 
     

@@ -257,10 +257,18 @@ class CardSearchView(generics.ListAPIView):
         query = self.request.query_params.get("q", "")
         if query and self.request.user.is_authenticated:
             SearchHistory.objects.create(user=self.request.user, query=query)
+        
+        if not query:
+            return Card.objects.none()
+        
         return Card.objects.filter(
             Q(title__icontains=query) |
-            Q(description__icontains=query)
+            Q(description__icontains=query) |
+            Q(address__icontains=query)
         )
+
+    def get_serializer_context(self):
+        return {'request': self.request}
 
     def get_serializer_context(self):
         return {'request': self.request}
