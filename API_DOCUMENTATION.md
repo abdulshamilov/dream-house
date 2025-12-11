@@ -6,9 +6,10 @@
 
 ## 📚 Содержание
 1. [Аутентификация](#authentication)
-2. [Скидки](#discounts)
-3. [Рекомендации](#recommendations)
-4. [AI Чат](#ai-chat)
+2. [Карточки и фильтры](#cards)
+3. [Скидки](#discounts)
+4. [Рекомендации](#recommendations)
+5. [AI Чат](#ai-chat)
 
 ---
 
@@ -29,6 +30,221 @@ curl -X POST https://api.dreamhouse05.com/api/token/login/ \
     "password": "your_password"
   }'
 ```
+
+---
+
+## <a name="cards"></a>🏠 API Карточек и фильтры
+
+### Получить список карточек (GET)
+**GET** `/api/cards/`
+
+Получить список всех карточек с поддержкой фильтрации через query параметры.
+
+**Доступные параметры фильтрации:**
+
+| Параметр | Тип | Описание | Пример |
+|----------|-----|---------|--------|
+| `search` | string | Поиск по названию, описанию, адресу | `?search=квартира` |
+| `city` | int | Город (1=Махачкала, 2=Каспийск, 3=Дербент) | `?city=1` |
+| `house_type` | string | Тип дома (apartment, house) | `?house_type=apartment` |
+| `building_material` | string | Материал (brick, panel, monolith) | `?building_material=brick` |
+| `category` | string | Категория (flat, new_building) | `?category=flat` |
+| `elevator` | string | Лифт (none, passenger, cargo) | `?elevator=passenger` |
+| `parking` | string | Парковка (none, underground) | `?parking=underground` |
+| `balcony` | bool | Наличие балкона (true/false) | `?balcony=true` |
+| `price_min` | int | Минимальная цена | `?price_min=1000000` |
+| `price_max` | int | Максимальная цена | `?price_max=5000000` |
+| `rooms_min` | int | Минимум комнат | `?rooms_min=2` |
+| `rooms_max` | int | Максимум комнат | `?rooms_max=4` |
+| `area_min` | float | Минимальная площадь (м²) | `?area_min=50` |
+| `area_max` | float | Максимальная площадь (м²) | `?area_max=150` |
+| `floors_min` | int | Минимум этажей в доме | `?floors_min=5` |
+| `floors_max` | int | Максимум этажей в доме | `?floors_max=20` |
+
+**Пример запроса (несколько фильтров):**
+```bash
+curl -X GET "https://api.dreamhouse05.com/api/cards/?city=1&price_min=1000000&price_max=5000000&house_type=apartment&rooms_min=2" \
+  -H "Content-Type: application/json"
+```
+
+**Пример ответа (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "title": "Квартира в центре",
+    "address": "ул. Ленина, 25",
+    "description": "3-комнатная квартира в новом доме...",
+    "price": 2900000,
+    "rooms": 3,
+    "city": 1,
+    "house_type": "apartment",
+    "area": 85.5,
+    "building_material": "brick",
+    "category": "flat",
+    "floors_total": 12,
+    "elevator": "passenger",
+    "parking": "underground",
+    "balcony": true,
+    "ceiling_height": 2.8,
+    "latitude": 42.9813,
+    "longitude": 47.5025,
+    "rating": 4.8,
+    "rating_count": 15,
+    "owner": "Иван Петров",
+    "developer": {
+      "id": 5,
+      "name": "СК Развитие",
+      "logo": "http://example.com/logo.png"
+    },
+    "images": [
+      {"id": 1, "image": "http://example.com/img1.jpg"},
+      {"id": 2, "image": "http://example.com/img2.jpg"}
+    ],
+    "videos": [
+      {"id": 1, "video": "http://example.com/video1.mp4"}
+    ],
+    "documents": [
+      {"id": 1, "title": "План", "file": "http://example.com/plan.pdf", "uploaded_at": "2025-12-10T10:00:00Z"}
+    ],
+    "reviews": ["Отличная квартира!", "Рекомендую!"],
+    "questions": ["Можно ли торговаться?"],
+    "created_at": "2025-12-01T14:30:00Z",
+    "is_favorite": false
+  },
+  {
+    "id": 2,
+    "title": "Уютная квартира",
+    "address": "пр. Пушкина, 10",
+    "description": "2-комнатная квартира...",
+    "price": 1800000,
+    "rooms": 2,
+    "city": 1,
+    "house_type": "apartment",
+    "area": 65.0,
+    "building_material": "panel",
+    "category": "flat",
+    "floors_total": 9,
+    "elevator": "passenger",
+    "parking": "none",
+    "balcony": false,
+    "ceiling_height": 2.5,
+    "latitude": 42.9820,
+    "longitude": 47.5030,
+    "rating": 4.5,
+    "rating_count": 8,
+    "owner": "Мария Сидорова",
+    "developer": null,
+    "images": [],
+    "videos": [],
+    "documents": [],
+    "reviews": [],
+    "questions": [],
+    "created_at": "2025-12-05T16:00:00Z",
+    "is_favorite": true
+  }
+]
+```
+
+**Статус коды:**
+- `200` - Успешно
+- `400` - Некорректные параметры фильтра
+
+---
+
+### Получить список карточек с фильтрами (POST)
+**POST** `/api/cards/filter/`
+
+Альтернативный способ фильтрации - передача параметров в теле JSON. Удобен когда много фильтров или нужна сложная логика.
+
+**Тело запроса (все параметры опциональны):**
+```json
+{
+  "search": "квартира в центре",
+  "city": 1,
+  "house_type": "apartment",
+  "building_material": "brick",
+  "category": "flat",
+  "elevator": "passenger",
+  "parking": "underground",
+  "balcony": true,
+  "price_min": 1000000,
+  "price_max": 5000000,
+  "rooms_min": 2,
+  "rooms_max": 4,
+  "area_min": 50,
+  "area_max": 150,
+  "floors_min": 5,
+  "floors_max": 20
+}
+```
+
+**Пример запроса:**
+```bash
+curl -X POST https://api.dreamhouse05.com/api/cards/filter/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "city": 1,
+    "price_min": 1000000,
+    "price_max": 5000000,
+    "house_type": "apartment",
+    "rooms_min": 2,
+    "elevator": "passenger"
+  }'
+```
+
+**Пример ответа (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "title": "Квартира в центре",
+    "address": "ул. Ленина, 25",
+    "description": "3-комнатная квартира в новом доме...",
+    "price": 2900000,
+    "rooms": 3,
+    "city": 1,
+    "house_type": "apartment",
+    "area": 85.5,
+    "building_material": "brick",
+    "category": "flat",
+    "floors_total": 12,
+    "elevator": "passenger",
+    "parking": "underground",
+    "balcony": true,
+    "ceiling_height": 2.8,
+    "latitude": 42.9813,
+    "longitude": 47.5025,
+    "rating": 4.8,
+    "rating_count": 15,
+    "owner": "Иван Петров",
+    "developer": {
+      "id": 5,
+      "name": "СК Развитие",
+      "logo": "http://example.com/logo.png"
+    },
+    "images": [
+      {"id": 1, "image": "http://example.com/img1.jpg"}
+    ],
+    "videos": [],
+    "documents": [],
+    "reviews": ["Отличная квартира!"],
+    "questions": [],
+    "created_at": "2025-12-01T14:30:00Z",
+    "is_favorite": false
+  }
+]
+```
+
+**Статус коды:**
+- `200` - Успешно
+- `400` - Некорректные данные в теле запроса
+
+---
+
+**Рекомендация:**
+- **GET /api/cards/** - для простых фильтров (1-3 параметра), поддерживает кэширование
+- **POST /api/cards/filter/** - для сложных фильтров (много параметров), удобнее работать с JSON
 
 ---
 
