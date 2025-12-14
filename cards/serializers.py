@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import (
     Card, CardImage, CardVideo, CardDocument, CallRequest,
     CardReview, CardQuestion, SearchHistory,
-    Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant
+    Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
+    CardDocumentList, ViewHistory
 )
 from developers.models import Developer
 
@@ -10,11 +11,23 @@ from developers.models import Developer
 # 🔑 НОВЫЙ: Сериализатор для Застройщика (для вложения)
 # -------------------------------
 class DeveloperInCardSerializer(serializers.ModelSerializer):
-    """Отображает ID, имя и логотип застройщика для вложения в карточку."""
-    # Логотип (фото) в Django называется 'logo'
+    """Отображает ID, имя, логотип застройщика и статус подписки"""
+    is_subscribed = serializers.SerializerMethodField()
+    
     class Meta:
         model = Developer
-        fields = ['id', 'name', 'logo'] 
+        fields = ['id', 'name', 'logo', 'is_subscribed']
+    
+    def get_is_subscribed(self, obj):
+        """Проверить, подписан ли текущий пользователь на этого застройщика"""
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            from developers.models import Subscription
+            return Subscription.objects.filter(
+                user=request.user,
+                developer=obj
+            ).exists()
+        return False 
 
 
 # -------------------------------
@@ -24,6 +37,26 @@ class CardImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CardImage
         fields = ['id', 'image']
+
+
+# 🔑 НОВЫЙ: Упрощенный сериализатор для подборок карточек (быстрый результат)
+class CardCurationSerializer(serializers.ModelSerializer):
+    """Минимальная информация о карточке для подборок"""
+    developer = DeveloperInCardSerializer(read_only=True)
+    is_favorite = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Card
+        fields = [
+            'id', 'title', 'price', 'rooms', 'area',
+            'city', 'rating', 'developer', 'is_favorite'
+        ]
+    
+    def get_is_favorite(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Favorite.objects.filter(user=request.user, card=obj).exists()
+        return False
 
 class CardVideoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,6 +69,22 @@ class CardDocumentSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'file', 'uploaded_at']
 
 
+# 🔑 НОВЫЙ: Сериализатор для подборок документов
+class CardDocumentListSerializer(serializers.ModelSerializer):
+    """Подборка документов с названием"""
+    documents = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CardDocumentList
+        fields = ['id', 'name', 'documents', 'created_at']
+    
+    def get_documents(self, obj):
+        """Получить все документы в этой подборке"""
+        # Предполагаем, что документы связаны через карточку
+        docs = CardDocument.objects.filter(card=obj.card)
+        return CardDocumentSerializer(docs, many=True).data
+
+
 # -------------------------------
 # Основной сериализатор карточки
 # -------------------------------
@@ -43,10 +92,12 @@ class CardSerializer(serializers.ModelSerializer):
     images = CardImageSerializer(many=True, read_only=True)
     videos = CardVideoSerializer(many=True, read_only=True)
     documents = CardDocumentSerializer(many=True, read_only=True)
+    document_lists = CardDocumentListSerializer(many=True, read_only=True)  # 🔑 НОВОЕ
     owner = serializers.StringRelatedField(read_only=True)
     reviews = serializers.StringRelatedField(many=True, read_only=True)
     questions = serializers.StringRelatedField(many=True, read_only=True)
     is_favorite = serializers.SerializerMethodField()
+    list_curations = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Подборки как объекты
     
     # 🔑 ИЗМЕНЕНО: Теперь отображает ID, имя и фото застройщика
     developer = DeveloperInCardSerializer(read_only=True) 
@@ -62,8 +113,9 @@ class CardSerializer(serializers.ModelSerializer):
             'rating', 'rating_count',
             'owner', 
             'developer',  # 🔑 ДОБАВЛЕНО: Теперь Developer будет сериализован полностью
-            'images', 'videos', 'documents',
+            'images', 'videos', 'documents', 'document_lists',  # 🔑 ИЗМЕНЕНО
             'reviews', 'questions',
+            'list_curations',  # 🔑 НОВОЕ: Подборки квартир
             'created_at',
             'is_favorite'
         ]
@@ -73,6 +125,19 @@ class CardSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return Favorite.objects.filter(user=request.user, card=obj).exists()
         return False
+    
+    def get_list_curations(self, obj):
+        """Получить рекомендуемые карточки из list_curations"""
+        import json
+        try:
+            curations_ids = json.loads(obj.list_curations)
+            if curations_ids:
+                cards = Card.objects.filter(id__in=curations_ids)
+                # Сериализуем с минимальной информацией для экономии трафика
+                return CardCurationSerializer(cards, many=True, context=self.context).data
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return []
 
 
 # -------------------------------
@@ -194,3 +259,14 @@ class ChatRequestSerializer(serializers.Serializer):
         required=False,
         help_text="'search' - поиск квартир в БД, 'free' - обычный чат без поиска"
     )
+
+
+# 🔑 НОВЫЙ: Сериализатор для истории просмотров
+class ViewHistorySerializer(serializers.ModelSerializer):
+    card_title = serializers.CharField(source='card.title', read_only=True)
+    card = CardSerializer(read_only=True)
+    
+    class Meta:
+        model = ViewHistory
+        fields = ['id', 'card', 'card_title', 'viewed_at', 'duration_seconds']
+        read_only_fields = ['id', 'card', 'card_title', 'viewed_at', 'duration_seconds']

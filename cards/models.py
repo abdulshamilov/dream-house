@@ -70,6 +70,14 @@ class Card(models.Model):
 
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     rating_count = models.PositiveIntegerField(default=0)
+    
+    # 🔑 НОВОЕ: Поле для подборок (списков похожих квартир)
+    # Может содержать несколько карточек в виде JSON или как M2M связь
+    list_curations = models.TextField(
+        default='[]',
+        blank=True,
+        help_text="JSON массив ID карточек для подборок (рекомендации, похожие объекты)"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -388,3 +396,60 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"Chat от {self.user} - {self.created_at.strftime('%d.%m.%Y %H:%M')}"
+
+
+# 🔑 НОВАЯ МОДЕЛЬ: Документы с группировкой
+class CardDocumentList(models.Model):
+    """Группировка документов карточки (подборка с названием)"""
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='document_lists'
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="Название подборки (например: 'Документы на квартиру', 'Правоустанавливающие документы')"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Подборка документов"
+        verbose_name_plural = "Подборки документов"
+
+    def __str__(self):
+        return f"{self.name} ({self.card.title})"
+
+
+# 🔑 НОВАЯ МОДЕЛЬ: История просмотров карточек
+class ViewHistory(models.Model):
+    """История просмотров карточек пользователем"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='view_history'
+    )
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='viewed_by'
+    )
+    viewed_at = models.DateTimeField(auto_now_add=True)
+    duration_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text="Сколько секунд пользователь просматривал карточку"
+    )
+
+    class Meta:
+        ordering = ['-viewed_at']
+        indexes = [
+            models.Index(fields=['user', '-viewed_at']),
+            models.Index(fields=['card', '-viewed_at']),
+        ]
+        verbose_name = "История просмотров"
+        verbose_name_plural = "История просмотров"
+        unique_together = ('user', 'card', 'viewed_at')  # Несколько просмотров одного юзера можно отслеживать
+
+    def __str__(self):
+        return f"{self.user} посмотрел {self.card.title} - {self.viewed_at.strftime('%d.%m.%Y %H:%M')}"

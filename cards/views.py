@@ -83,6 +83,22 @@ class CardDetailView(generics.RetrieveAPIView):
 
     def get_serializer_context(self):
         return {'request': self.request}
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Переопределить retrieve для автоматического сохранения просмотра"""
+        response = super().retrieve(request, *args, **kwargs)
+        
+        # 🔑 НОВОЕ: Автоматически сохранить просмотр если пользователь аутентифицирован
+        if request.user.is_authenticated:
+            from .models import ViewHistory
+            card = self.get_object()
+            ViewHistory.objects.create(
+                user=request.user,
+                card=card,
+                duration_seconds=0  # Будет обновлено на фронте
+            )
+        
+        return response
 
 # -------------------------------
 # 4. Избранное
@@ -270,5 +286,86 @@ class CardSearchView(generics.ListAPIView):
     def get_serializer_context(self):
         return {'request': self.request}
 
-    def get_serializer_context(self):
-        return {'request': self.request}
+
+# 🔑 НОВЫЕ: Views для истории просмотров и подборок документов
+
+@extend_schema(
+    summary="Сохранить просмотр карточки"
+)
+class CardViewHistoryView(generics.CreateAPIView):
+    """Сохранить просмотр карточки пользователем"""
+    permission_classes = [IsAuthenticated]
+    
+    def create(self, request, *args, **kwargs):
+        from .models import ViewHistory
+        
+        card_id = self.kwargs.get('card_pk')
+        duration = request.data.get('duration_seconds', 0)
+        
+        try:
+            card = Card.objects.get(id=card_id)
+            view = ViewHistory.objects.create(
+                user=request.user,
+                card=card,
+                duration_seconds=int(duration) if duration else 0
+            )
+            return Response(
+                {'message': 'View saved', 'id': view.id},
+                status=status.HTTP_201_CREATED
+            )
+        except Card.DoesNotExist:
+            return Response(
+                {'error': 'Card not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+@extend_schema(
+    summary="История просмотров пользователя"
+)
+class UserViewHistoryListView(generics.ListAPIView):
+    """Получить историю просмотров текущего пользователя"""
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        from .models import ViewHistory
+        return ViewHistory.objects.filter(user=self.request.user).order_by('-viewed_at')
+    
+    def get_serializer_class(self):
+        from .serializers import ViewHistorySerializer
+        return ViewHistorySerializer
+
+
+@extend_schema(
+    summary="Подборки документов для карточки"
+)
+class CardDocumentListsView(generics.ListAPIView):
+    """Получить подборки документов для карточки"""
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        from .models import CardDocumentList
+        card_id = self.kwargs.get('card_pk')
+        return CardDocumentList.objects.filter(card_id=card_id)
+    
+    def get_serializer_class(self):
+        from .serializers import CardDocumentListSerializer
+        return CardDocumentListSerializer
+
+
+@extend_schema(
+    summary="Создать подборку документов"
+)
+class CardDocumentListCreateView(generics.CreateAPIView):
+    """Создать новую подборку документов для карточки"""
+    permission_classes = [IsAdminOrReadOnly]
+    
+    def get_serializer_class(self):
+        from .serializers import CardDocumentListSerializer
+        return CardDocumentListSerializer
+    
+    def perform_create(self, serializer):
+        from .models import CardDocumentList
+        card_id = self.kwargs.get('card_pk')
+        card = get_object_or_404(Card, id=card_id)
+        serializer.save(card=card)

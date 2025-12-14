@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion,
-    DiscountRequest, Recommendation, AIAssistant, ChatMessage
+    DiscountRequest, Recommendation, AIAssistant, ChatMessage,
+    CardDocumentList, ViewHistory  # 🔑 НОВЫЕ
 )
 
 # 🔹 Inlines для связанных моделей
@@ -198,3 +199,45 @@ class ChatMessageAdmin(admin.ModelAdmin):
             return self.readonly_fields
         # История чатов только для чтения
         return ['user', 'message', 'response', 'referenced_cards', 'tokens_used', 'created_at']
+
+
+# 🔑 НОВАЯ: Админка для подборок документов
+@admin.register(CardDocumentList)
+class CardDocumentListAdmin(admin.ModelAdmin):
+    list_display = ['name', 'card', 'created_at', 'updated_at']
+    list_filter = ['created_at', 'card__city']
+    search_fields = ['name', 'card__title']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('card', 'name')
+        }),
+        ('Метаданные', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+# 🔑 НОВАЯ: Админка для истории просмотров
+@admin.register(ViewHistory)
+class ViewHistoryAdmin(admin.ModelAdmin):
+    list_display = ['user', 'card', 'viewed_at', 'duration_seconds']
+    list_filter = ['viewed_at', 'card__city', 'user']
+    search_fields = ['user__phone_number', 'card__title']
+    readonly_fields = ['viewed_at', 'user', 'card']
+    
+    fieldsets = (
+        ('Просмотр', {
+            'fields': ('user', 'card', 'viewed_at')
+        }),
+        ('Информация о просмотре', {
+            'fields': ('duration_seconds',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # Просмотры создаются автоматически через API
+        return False

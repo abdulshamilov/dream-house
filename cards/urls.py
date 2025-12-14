@@ -15,6 +15,10 @@ from .views import (
     MyFavoritesListAPIView,
     CardQuestionListView,
     CardQuestionAnswerView,
+    CardViewHistoryView,  # 🔑 НОВОЕ
+    UserViewHistoryListView,  # 🔑 НОВОЕ
+    CardDocumentListsView,  # 🔑 НОВОЕ
+    CardDocumentListCreateView,  # 🔑 НОВОЕ
 )
 from .views_ai import (
     DiscountRequestCreateView,
@@ -41,6 +45,13 @@ urlpatterns = [
     path("questions/<int:id>/", CardQuestionDetailView.as_view(), name="card_question_detail"),
     path("questions/<int:pk>/answer/", CardQuestionAnswerView.as_view(), name="card_question_answer"),
     path("search/", CardSearchView.as_view(), name="card_search"),
+    # 🔑 НОВЫЕ: История просмотров
+    path("<int:card_pk>/view-history/", CardViewHistoryView.as_view(), name="card_view_history"),
+    path("view-history/me/", UserViewHistoryListView.as_view(), name="my_view_history"),
+    # 🔑 НОВЫЕ: Подборки документов
+    path("<int:card_pk>/document-lists/", CardDocumentListsView.as_view(), name="card_document_lists"),
+    path("<int:card_pk>/document-lists/create/", CardDocumentListCreateView.as_view(), name="card_document_list_create"),
+    # AI
     path("<int:pk>/discount/", DiscountRequestCreateView.as_view(), name="discount_request"),
     path("discounts/me/", UserDiscountRequestsView.as_view(), name="my_discounts"),
     path("recommendations/", GetRecommendationsView.as_view(), name="recommendations"),

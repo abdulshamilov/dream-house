@@ -75,16 +75,24 @@ class AIAssistantService:
         """
         queryset = self.Card.objects.all()
         
-        # Полнотекстовый поиск
-        if query:
-            queryset = queryset.filter(
-                Q(title__icontains=query) |
-                Q(description__icontains=query) |
-                Q(address__icontains=query)
-            )
+        # Полнотекстовый поиск по ключевым словам
+        if query and query.strip():
+            # Разделить запрос на ключевые слова
+            keywords = query.lower().split()
+            q_objects = Q()
+            
+            for keyword in keywords:
+                q_objects |= (
+                    Q(title__icontains=keyword) |
+                    Q(description__icontains=keyword) |
+                    Q(address__icontains=keyword) |
+                    Q(city__in=self._parse_city_from_query(keyword))
+                )
+            
+            queryset = queryset.filter(q_objects)
         
-        # Применить предпочтения пользователя
-        if preferences:
+        # Применить предпочтения пользователя (фильтрация)
+        if preferences and isinstance(preferences, dict):
             filter_map = {
                 'city': 'city',
                 'rooms': 'rooms',
@@ -95,9 +103,27 @@ class AIAssistantService:
             
             for pref_key, filter_key in filter_map.items():
                 if pref_key in preferences and preferences[pref_key] is not None:
-                    queryset = queryset.filter(**{filter_key: preferences[pref_key]})
+                    try:
+                        queryset = queryset.filter(**{filter_key: preferences[pref_key]})
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Invalid filter value for {pref_key}: {e}")
+        
+        # Сортировка по релевантности (рейтинг и свежесть)
+        queryset = queryset.order_by('-rating', '-created_at')
         
         return [self._format_card(card) for card in queryset[:limit]]
+
+    def _parse_city_from_query(self, keyword: str) -> List[int]:
+        """Парсить название города из ключевого слова"""
+        city_map = {
+            'махачкала': 1,
+            'махачкале': 1,
+            'каспийск': 2,
+            'каспийске': 2,
+            'дербент': 3,
+            'дербенте': 3,
+        }
+        return [city_map.get(keyword, None)] if keyword in city_map else []
 
     def _format_card(self, card) -> Dict:
         """Форматировать карточку для передачи в AI"""
@@ -129,23 +155,35 @@ class AIAssistantService:
         Returns:
             Словарь с ответом и информацией
         """
+        # Валидация клиента и конфигурации
         if not self.client or not self.config:
+            logger.warning("AI Assistant not configured or client initialization failed")
             return {
+                'success': False,
                 'error': 'AI Assistant is not configured',
                 'response': 'К сожалению, AI ассистент не настроен. Пожалуйста, обратитесь к администратору.'
             }
 
+        # Валидация сообщения пользователя
+        if not user_message or not isinstance(user_message, str) or not user_message.strip():
+            return {
+                'success': False,
+                'error': 'Empty message',
+                'response': 'Пожалуйста, отправьте сообщение.'
+            }
+
         try:
             search_results = []
-            context = user_message
+            context = user_message.strip()
             
-            # Режим поиска квартир - ищет в БД
+            # Режим поиска квартир - ищет в БД и строит контекст с результатами
             if mode == 'search':
-                search_results = self.search_cards(user_message, user_preferences)
+                search_results = self.search_cards(user_message, user_preferences, limit=5)
                 context = self._build_context(user_message, search_results, user_preferences)
             
-            # Режим свободного чата - просто отправляем сообщение
+            # Режим свободного чата - просто отправляем сообщение без дополнительного контекста
             elif mode == 'free':
+                # Для режима free можно добавить более креативный системный промпт
                 context = user_message
             
             # Отправить запрос к API
@@ -170,10 +208,11 @@ class AIAssistantService:
                     'mode': mode
                 }
             else:
+                logger.error(f"API call failed: {response_data.get('error')}")
                 return {
                     'success': False,
                     'error': response_data.get('error', 'Unknown error'),
-                    'response': 'Произошла ошибка при обработке вашего запроса.'
+                    'response': 'Произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте снова.'
                 }
 
         except Exception as e:
@@ -181,17 +220,26 @@ class AIAssistantService:
             return {
                 'success': False,
                 'error': str(e),
-                'response': 'Произошла ошибка при обработке вашего запроса.'
+                'response': 'Произошла неожиданная ошибка при обработке вашего запроса.'
             }
 
     def _build_context(self, user_message: str, search_results: List[Dict], preferences: Optional[Dict]) -> str:
         """Построить контекст для отправки в API"""
-        context = f"""Пользователь ищет недвижимость с параметрами: {json.dumps(preferences, ensure_ascii=False, indent=2)}
-
-Найденные карточки из базы данных:
-"""
-        for i, card in enumerate(search_results, 1):
-            context += f"\n{i}. {card['title']} ({card['address']}) - {card['price']}₽, {card['rooms']} комнат"
+        context = "Ты профессиональный консультант по недвижимости. Помогай пользователям найти идеальный дом.\n\n"
+        
+        # Добавить информацию о фильтрах если они есть
+        if preferences and isinstance(preferences, dict) and any(v is not None for v in preferences.values()):
+            context += f"Предпочтения пользователя: {json.dumps(preferences, ensure_ascii=False, indent=2)}\n\n"
+        
+        # Добавить найденные карточки
+        if search_results:
+            context += "Найденные карточки из базы данных:\n"
+            for i, card in enumerate(search_results, 1):
+                context += f"\n{i}. {card['title']} ({card['address']})\n"
+                context += f"   Цена: {card['price']}₽ | Комнат: {card['rooms']} | Площадь: {card['area']}м²\n"
+                context += f"   Рейтинг: {card['rating']}/5 | Тип: {card['house_type']}\n"
+        else:
+            context += "К сожалению, по вашему запросу в базе данных не найдено подходящих карточек.\n"
         
         context += f"\n\nПросьба пользователя: {user_message}"
         
@@ -199,6 +247,12 @@ class AIAssistantService:
 
     def _call_api(self, context: str) -> Dict:
         """Отправить запрос к API провайдера"""
+        if not self.config or not self.client:
+            return {
+                'success': False,
+                'error': 'API client not initialized'
+            }
+        
         api_methods = {
             'openai': self._call_openai,
             'anthropic': self._call_anthropic,
@@ -207,7 +261,9 @@ class AIAssistantService:
         
         api_method = api_methods.get(self.config.api_provider)
         if not api_method:
-            return {'success': False, 'error': f'Unknown API provider: {self.config.api_provider}'}
+            error_msg = f'Unknown API provider: {self.config.api_provider}'
+            logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
         
         return api_method(context)
 
