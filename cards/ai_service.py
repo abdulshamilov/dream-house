@@ -176,10 +176,22 @@ class AIAssistantService:
             search_results = []
             context = user_message.strip()
             
+            logger.info(f"AI Chat called: mode={mode}, message_len={len(user_message)}")
+            
             # Режим поиска квартир - ищет в БД и строит контекст с результатами
             if mode == 'search':
+                logger.info("Searching cards...")
                 search_results = self.search_cards(user_message, user_preferences, limit=5)
+                logger.info(f"Found {len(search_results)} cards")
+                
+                # Если поиск не вернул результаты, показать ВСЕ доступные
+                if not search_results:
+                    all_cards = self.Card.objects.all().order_by('-rating', '-created_at')[:5]
+                    search_results = [self._format_card(card) for card in all_cards]
+                    logger.info(f"Using top {len(search_results)} cards instead")
+                
                 context = self._build_context(user_message, search_results, user_preferences)
+                logger.info(f"Context built: {len(context)} chars")
             
             # Режим свободного чата - просто отправляем сообщение без дополнительного контекста
             elif mode == 'free':
@@ -187,7 +199,9 @@ class AIAssistantService:
                 context = user_message
             
             # Отправить запрос к API
+            logger.info(f"Calling AI API with context...")
             response_data = self._call_api(context)
+            logger.info(f"API response: success={response_data['success']}")
             
             if response_data['success']:
                 # Сохранить в историю если user_id предоставлен
@@ -225,23 +239,22 @@ class AIAssistantService:
 
     def _build_context(self, user_message: str, search_results: List[Dict], preferences: Optional[Dict]) -> str:
         """Построить контекст для отправки в API"""
-        context = "Ты профессиональный консультант по недвижимости. Помогай пользователям найти идеальный дом.\n\n"
+        context = ""
         
         # Добавить информацию о фильтрах если они есть
         if preferences and isinstance(preferences, dict) and any(v is not None for v in preferences.values()):
-            context += f"Предпочтения пользователя: {json.dumps(preferences, ensure_ascii=False, indent=2)}\n\n"
+            context += f"Фильтры пользователя: {json.dumps(preferences, ensure_ascii=False)}\n\n"
         
         # Добавить найденные карточки
         if search_results:
-            context += "Найденные карточки из базы данных:\n"
+            context += "Доступные варианты недвижимости:\n"
             for i, card in enumerate(search_results, 1):
-                context += f"\n{i}. {card['title']} ({card['address']})\n"
-                context += f"   Цена: {card['price']}₽ | Комнат: {card['rooms']} | Площадь: {card['area']}м²\n"
-                context += f"   Рейтинг: {card['rating']}/5 | Тип: {card['house_type']}\n"
+                context += f"{i}. {card['title']} - {card['address']}\n"
+                context += f"   {card['price']:,}₽ | {card['rooms']}к | {card['area']}м² | ⭐{card['rating']}\n"
         else:
-            context += "К сожалению, по вашему запросу в базе данных не найдено подходящих карточек.\n"
+            context += "В базе данных пока нет карточек.\n"
         
-        context += f"\n\nПросьба пользователя: {user_message}"
+        context += f"\nВопрос: {user_message}"
         
         return context
 
@@ -325,25 +338,69 @@ class AIAssistantService:
     def _call_deepseek(self, context: str) -> Dict:
         """Вызвать DeepSeek API (OpenAI-совместимый)"""
         try:
+            # DeepSeek модель ВСЕГДА 'deepseek-chat'
+            model_name = 'deepseek-chat'
+            
+            logger.info(f"Calling DeepSeek API with {len(context)} chars context, max_tokens={self.config.max_tokens}")
+            
+            # Добавляем timeout для запроса (30 секунд)
             message = self.client.chat.completions.create(
-                model=self.config.model_name,
+                model=model_name,
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
                 messages=[
                     {"role": "system", "content": self.config.system_prompt},
                     {"role": "user", "content": context}
-                ]
+                ],
+                timeout=30.0  # 30 секунд timeout
             )
+
+            response_text = message.choices[0].message.content
+            
+            # Очистить форматирование из ответа
+            response_text = self._clean_response(response_text)
+            
+            tokens_used = getattr(message.usage, 'total_tokens', self.config.max_tokens)
+            
+            logger.info(f"DeepSeek response: {len(response_text)} chars, {tokens_used} tokens")
 
             return {
                 'success': True,
-                'response': message.choices[0].message.content,
-                'tokens_used': message.usage.total_tokens
+                'response': response_text,
+                'tokens_used': tokens_used
             }
 
         except Exception as e:
             logger.exception(f"DeepSeek API error: {e}")
             return {'success': False, 'error': str(e)}
+
+    def _clean_response(self, text: str) -> str:
+        """Очистить ответ от markdown и лишнего форматирования"""
+        # Убрать ** (жирный текст)
+        text = text.replace('**', '')
+        
+        # Убрать ## (заголовки)
+        text = text.replace('##', '')
+        
+        # Убрать # (заголовки)
+        text = text.replace('# ', '')
+        
+        # Убрать литеральные \n (если есть в виде текста)
+        text = text.replace('\\n', '\n')
+        
+        # Убрать ```` (блоки кода)
+        text = text.replace('```', '')
+        text = text.replace('`', '')
+        
+        # Убрать пробелы в начале и конце каждой строки
+        lines = text.split('\n')
+        lines = [line.strip() for line in lines]
+        text = '\n'.join(lines)
+        
+        # Убрать пустые строки
+        text = '\n'.join([line for line in text.split('\n') if line.strip()])
+        
+        return text
 
     def _save_to_history(self, user_id: int, message: str, response: str, cards: List[Dict], tokens: int):
         """Сохранить чат в историю"""

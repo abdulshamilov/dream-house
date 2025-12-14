@@ -126,7 +126,22 @@ class AIChatView(generics.GenericAPIView):
             # Получить последнее сохраненное сообщение
             chat = ChatMessage.objects.filter(user=request.user).order_by('-created_at').first()
             if chat:
-                return Response(ChatMessageSerializer(chat).data, status=status.HTTP_201_CREATED)
+                response_data = ChatMessageSerializer(chat).data
+                
+                # Добавить информацию о карточках в ответ
+                referenced_card_ids = result.get('referenced_cards', [])
+                if referenced_card_ids:
+                    from .models import Card
+                    cards = Card.objects.filter(id__in=referenced_card_ids)
+                    from .serializers import CardSerializer
+                    response_data['referenced_cards'] = CardSerializer(cards, many=True).data
+                else:
+                    response_data['referenced_cards'] = []
+                
+                response_data['ai_response'] = result.get('response')
+                response_data['mode'] = result.get('mode', 'search')
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
             return Response({'error': 'Chat not saved'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response(
