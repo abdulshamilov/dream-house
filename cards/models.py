@@ -76,7 +76,7 @@ class Card(models.Model):
     list_curations = models.TextField(
         default='[]',
         blank=True,
-        help_text="JSON массив ID карточек для подборок (рекомендации, похожие объекты)"
+        help_text="JSON массив с объектами карточек для подборок. Каждый объект содержит: id, address, price, rooms, city, rating"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -95,6 +95,71 @@ class Card(models.Model):
     def __str__(self):
         return self.title
     
+    def update_rating(self):
+        """Обновить рейтинг на основе отзывов"""
+        from django.db.models import Avg
+        avg_rating = self.user_reviews.aggregate(Avg('rating'))['rating__avg']
+        if avg_rating:
+            self.rating = round(avg_rating, 2)
+            self.rating_count = self.user_reviews.count()
+            self.save(update_fields=['rating', 'rating_count'])
+    
+    def generate_curations(self, user=None, limit: int = 5):
+        """
+        Генерирует подборку похожих квартир
+        Алгоритм: если есть user, ищет похожие на его предпочтения
+        Иначе ищет похожие по параметрам (город, цена, комнаты)
+        """
+        import json
+        from django.db.models import Q
+        
+        similar_cards = Card.objects.exclude(id=self.id)
+        
+        # Если есть пользователь, смотрим его просмотры/избранное
+        if user:
+            from .models import Favorite, ViewHistory
+            # Карточки которые он уже смотрел
+            viewed_cards = ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)
+            # Карточки которые добавил в избранное
+            favorite_cards = Favorite.objects.filter(user=user).values_list('card_id', flat=True)
+            # Исключим уже просмотренные
+            similar_cards = similar_cards.exclude(id__in=list(viewed_cards) + list(favorite_cards))
+        
+        # Сортируем по параметрам:
+        # 1. Тот же город
+        # 2. Похожая цена (±30%)
+        # 3. Похожее количество комнат
+        from decimal import Decimal
+        price_min = self.price * Decimal('0.7')
+        price_max = self.price * Decimal('1.3')
+        
+        q_filter = Q(city=self.city)
+        q_filter |= Q(
+            price__gte=price_min,
+            price__lte=price_max,
+            rooms=self.rooms
+        )
+        
+        similar_cards = similar_cards.filter(q_filter).order_by('-rating', '-created_at')[:limit]
+        
+        # Формируем JSON с полной информацией
+        curations = []
+        for card in similar_cards:
+            curations.append({
+                'id': card.id,
+                'address': card.address,
+                'price': float(card.price),
+                'rooms': card.rooms,
+                'city': card.get_city_display(),
+                'rating': float(card.rating),
+                'title': card.title,
+            })
+        
+        self.list_curations = json.dumps(curations, ensure_ascii=False)
+        self.save(update_fields=['list_curations'])
+        
+        return curations
+    
     
 class CallRequest(models.Model):
     card = models.ForeignKey(
@@ -110,6 +175,34 @@ class CallRequest(models.Model):
 
     def __str__(self):
         return f"Заявка от {self.name} ({self.phone_number})"
+
+
+class Review(models.Model):
+    """Отзывы пользователей о карточках"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='user_reviews'
+    )
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='user_reviews'
+    )
+    rating = models.IntegerField(
+        choices=[(i, f"{i}★") for i in range(1, 6)],
+        help_text="Оценка от 1 до 5"
+    )
+    text = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'card')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Отзыв {self.user.phone_number} на {self.card.title} ({self.rating}★)"
 
 
 class CardImage(models.Model):
@@ -130,9 +223,20 @@ class CardVideo(models.Model):
 
 class CardDocument(models.Model):
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='documents')
+    document_list = models.ForeignKey(
+        'CardDocumentList',
+        on_delete=models.CASCADE,
+        related_name='files',
+        null=True,
+        blank=True,
+        help_text="Подборка, к которой относится документ"
+    )
     file = models.FileField(upload_to='cards/documents/')
     title = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at']
 
     def __str__(self):
         return f"{self.title} ({self.card.title})"
@@ -322,19 +426,30 @@ class AIAssistant(models.Model):
         help_text="Название модели (gpt-4, claude-3-opus и т.д.)"
     )
     system_prompt = models.TextField(
-        default="""Ты профессиональный консультант по недвижимости. Помогай пользователям найти идеальный дом.
-Ты имеешь доступ к базе данных карточек недвижимости и можешь давать персонализированные рекомендации. 
-Если человек отходит от темы недвижимости, вежливо направляй его к ней.
+        default="""Ты консультант по недвижимости. Говоришь на языке пользователя - если он сленговый, ты сленговый.
 
-ВАЖНО - Форматирование ответов:
-- Пиши чистым текстом без markdown разметки
-- НЕ используй ** для жирного текста
-- НЕ используй символы \\n для переносов (пиши обычные абзацы)
-- НЕ используй # для заголовков
-- Используй простые тире - для списков
-- Отвечай кратко и по делу
+ГЛАВНОЕ! НЕ ПИШИ ПРИВЕТСТВИЯ!
+Не пиши: "Привет", "Здравствуйте", "Конечно", "С удовольствием", "Спасибо за вопрос"
+Начинай ПРЯМО с ответа, с варианта, с информации.
 
-Отвечай на русском языке, будь вежлив и информативен.""",
+КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ ПРО КВАРТИРЫ/НЕДВИЖИМОСТЬ:
+Дай ему варианты. Прямо в первом же предложении. "Вот 3 варианта", "Есть крутая квартира", "Показываю что есть".
+Если параметров нет (просто "квартиры") - дай ТОП, лучшие варианты.
+Если мало вариантов - предложи расширить (другой район, другой бюджет).
+
+КОГДА ВОПРОС НЕ ПРО НЕДВИЖИМОСТЬ:
+Ответь на вопрос как нормальный человек. Потом предложи помощь с квартирами если уместно.
+"Месси - легенда футбола. А вот если квартиру ищешь, я помогу" - вот это стиль!
+
+СТИЛЬ ОБЩЕНИЯ:
+Сленг, разговорный, свой. Если пользователь говорит "типа", "норм", "печально" - ты так же.
+Короткие фразы. Никакого "я с радостью", "было бы честью". Просто делу.
+
+ФОРМАТИРОВАНИЕ:
+Чистый текст. Без ** и #. Списки просто: "- вариант 1".
+Никакого markdown.
+
+Язык: русский. Стиль: естественный, как реальный человек.""",
         help_text="Системный промпт для AI"
     )
     temperature = models.FloatField(

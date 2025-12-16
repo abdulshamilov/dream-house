@@ -1,8 +1,8 @@
 from django.contrib import admin
 from .models import (
     Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion,
-    DiscountRequest, Recommendation, AIAssistant, ChatMessage,
-    CardDocumentList, ViewHistory  # 🔑 НОВЫЕ
+    CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
+    CardDocumentList, ViewHistory, Review  # 🔑 НОВЫЕ
 )
 
 # 🔹 Inlines для связанных моделей
@@ -56,6 +56,25 @@ class CardAdmin(admin.ModelAdmin):
     search_fields = ['title', 'address', 'description']
     list_filter = ['city', 'house_type', 'category', 'floors_total', 'elevator', 'parking']
     inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
+    
+    def save_model(self, request, obj, form, change):
+        """Сохранить карточку и создать уведомления подписчикам"""
+        is_new = not change  # change=False для новых
+        super().save_model(request, obj, form, change)
+        
+        # Если это новая карточка с девелопером, создать уведомления подписчикам
+        if is_new and obj.developer:
+            from developers.models import Subscription
+            from notifications.models import Notification
+            
+            subs = Subscription.objects.filter(developer=obj.developer)
+            
+            for sub in subs:
+                Notification.objects.create(
+                    user=sub.user,
+                    title="Новая квартира от вашего девелопера",
+                    message=f"{obj.title} — {obj.price}₽, {obj.rooms} комн."
+                )
 
 
 # 🔹 Отдельная регистрация остальных моделей
@@ -90,6 +109,31 @@ class CardQuestionAdmin(admin.ModelAdmin):
     search_fields = ['question', 'answer', 'user__phone_number']
 
 
+# ==================== ЗАЯВКИ НА ЗВОНОК ====================
+
+@admin.register(CallRequest)
+class CallRequestAdmin(admin.ModelAdmin):
+    list_display = ['name', 'phone_number', 'card', 'preferred_time', 'is_processed', 'created_at']
+    list_filter = ['is_processed', 'created_at', 'card__city']
+    search_fields = ['name', 'phone_number', 'card__title']
+    readonly_fields = ['created_at']
+    
+    fieldsets = (
+        ('Контактная информация', {
+            'fields': ('name', 'phone_number')
+        }),
+        ('Квартира', {
+            'fields': ('card',)
+        }),
+        ('Время звонка', {
+            'fields': ('preferred_time',)
+        }),
+        ('Статус', {
+            'fields': ('is_processed', 'created_at')
+        }),
+    )
+
+
 # ==================== СКИДКИ ====================
 
 @admin.register(DiscountRequest)
@@ -121,6 +165,30 @@ class DiscountRequestAdmin(admin.ModelAdmin):
         if obj.status != 'pending':
             return ['card', 'user', 'original_price', 'requested_price', 'discount_percent', 'created_at', 'updated_at', 'message']
         return self.readonly_fields
+    
+    def save_model(self, request, obj, form, change):
+        """Сохранить и создать уведомления"""
+        is_new = not change  # change=False для новых, True для обновления
+        super().save_model(request, obj, form, change)
+        
+        # Если это новая скидка, создать уведомления
+        if is_new:
+            from notifications.models import Notification
+            
+            # Уведомление для владельца квартиры
+            if obj.card.owner:
+                Notification.objects.create(
+                    user=obj.card.owner,
+                    title="Запрос на скидку",
+                    message=f"Пользователь предложил {obj.requested_price}₽ за {obj.card.title} (было {obj.original_price}₽)"
+                )
+
+            # Уведомление для пользователя
+            Notification.objects.create(
+                user=obj.user,
+                title="Ваш запрос на скидку отправлен",
+                message=f"Запрос на скидку отправлен владельцу {obj.card.title}. Статус: На рассмотрении"
+            )
 
 
 # ==================== РЕКОМЕНДАЦИИ ====================
@@ -241,3 +309,26 @@ class ViewHistoryAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Просмотры создаются автоматически через API
         return False
+
+
+# 🔑 НОВАЯ: Админка для отзывов
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ['user', 'card', 'rating', 'created_at', 'updated_at']
+    list_filter = ['rating', 'created_at', 'card__city']
+    search_fields = ['user__phone_number', 'card__title', 'text']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Отзыв', {
+            'fields': ('user', 'card', 'rating', 'text')
+        }),
+        ('Дата и время', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # Отзывы создаются через API
+        return True

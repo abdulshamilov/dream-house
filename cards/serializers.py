@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    Card, CardImage, CardVideo, CardDocument, CallRequest,
+    Card, CardImage, CardVideo, CardDocument, CallRequest, Review,
     CardReview, CardQuestion, SearchHistory,
     Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
     CardDocumentList, ViewHistory
@@ -72,17 +72,16 @@ class CardDocumentSerializer(serializers.ModelSerializer):
 # 🔑 НОВЫЙ: Сериализатор для подборок документов
 class CardDocumentListSerializer(serializers.ModelSerializer):
     """Подборка документов с названием"""
-    documents = serializers.SerializerMethodField()
+    files = serializers.SerializerMethodField()
     
     class Meta:
         model = CardDocumentList
-        fields = ['id', 'name', 'documents', 'created_at']
+        fields = ['id', 'name', 'files']
     
-    def get_documents(self, obj):
-        """Получить все документы в этой подборке"""
-        # Предполагаем, что документы связаны через карточку
-        docs = CardDocument.objects.filter(card=obj.card)
-        return CardDocumentSerializer(docs, many=True).data
+    def get_files(self, obj):
+        """Получить все файлы в этой подборке"""
+        files = obj.files.all()  # Используем related_name 'files'
+        return CardDocumentSerializer(files, many=True).data
 
 
 # -------------------------------
@@ -270,3 +269,20 @@ class ViewHistorySerializer(serializers.ModelSerializer):
         model = ViewHistory
         fields = ['id', 'card', 'card_title', 'viewed_at', 'duration_seconds']
         read_only_fields = ['id', 'card', 'card_title', 'viewed_at', 'duration_seconds']
+
+
+# 🔑 НОВЫЙ: Сериализатор для отзывов
+class ReviewSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.name', read_only=True)
+    user_phone = serializers.CharField(source='user.phone_number', read_only=True)
+    
+    class Meta:
+        model = Review
+        fields = ['id', 'user_name', 'user_phone', 'rating', 'text', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user_name', 'user_phone', 'created_at', 'updated_at']
+
+
+class ReviewCreateUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ['rating', 'text']

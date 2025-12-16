@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 
-from .models import Card, CardReview, CardQuestion, CardVideo, SearchHistory, Favorite
+from .models import Card, CardReview, CardQuestion, CardVideo, SearchHistory, Favorite, Review
 from .serializers import (
     CardSerializer,
     CardReviewSerializer,
@@ -369,3 +369,91 @@ class CardDocumentListCreateView(generics.CreateAPIView):
         card_id = self.kwargs.get('card_pk')
         card = get_object_or_404(Card, id=card_id)
         serializer.save(card=card)
+
+
+# 🔑 НОВОЕ: Отзывы на карточки
+class ReviewListCreateView(generics.ListCreateAPIView):
+    """Список отзывов и создание нового отзыва"""
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        card_id = self.kwargs.get('card_pk')
+        return Review.objects.filter(card_id=card_id)
+    
+    def get_serializer_class(self):
+        from .serializers import ReviewSerializer, ReviewCreateUpdateSerializer
+        if self.request.method == 'POST':
+            return ReviewCreateUpdateSerializer
+        return ReviewSerializer
+    
+    def perform_create(self, serializer):
+        from .models import Review
+        card_id = self.kwargs.get('card_pk')
+        card = get_object_or_404(Card, id=card_id)
+        review = serializer.save(user=self.request.user, card=card)
+        # Обновляем рейтинг карточки
+        card.update_rating()
+
+
+class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Получить, обновить или удалить отзыв"""
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Review.objects.all()
+    
+    def get_serializer_class(self):
+        from .serializers import ReviewSerializer, ReviewCreateUpdateSerializer
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return ReviewCreateUpdateSerializer
+        return ReviewSerializer
+    
+    def check_object_permissions(self, request, obj):
+        # Только автор может редактировать/удалять
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            if obj.user != request.user:
+                self.permission_denied(request, message="You can only edit your own reviews")
+        super().check_object_permissions(request, obj)
+    
+    def perform_update(self, serializer):
+        review = serializer.save()
+        # Обновляем рейтинг карточки
+        review.card.update_rating()
+    
+    def perform_destroy(self, instance):
+        card = instance.card
+        instance.delete()
+        # Обновляем рейтинг карточки
+        card.update_rating()
+
+
+# 🔑 НОВОЕ: Подборка для карточки
+@extend_schema(
+    summary="Получить подборку похожих карточек",
+    responses=CardSerializer(many=True)
+)
+class CardCurationsView(generics.RetrieveAPIView):
+    """Получить подборку похожих карточек"""
+    queryset = Card.objects.all()
+    serializer_class = CardSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Переопределить для возврата кураций"""
+        card = self.get_object()
+        
+        # Генерируем кураци если нужны
+        if not card.list_curations or card.list_curations == '[]':
+            card.generate_curations(user=request.user if request.user.is_authenticated else None)
+        
+        # Возвращаем курации
+        import json
+        try:
+            curations_data = json.loads(card.list_curations)
+        except:
+            curations_data = []
+        
+        return Response({
+            'card_id': card.id,
+            'curations': curations_data
+        }, status=status.HTTP_200_OK)

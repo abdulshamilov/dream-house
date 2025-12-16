@@ -6,8 +6,8 @@ from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from .models import DiscountRequest, Recommendation, ChatMessage
-from .serializers import DiscountRequestSerializer, RecommendationSerializer, ChatMessageSerializer, ChatRequestSerializer
+from .models import DiscountRequest, Recommendation, ChatMessage, Card
+from .serializers import DiscountRequestSerializer, RecommendationSerializer, ChatMessageSerializer, ChatRequestSerializer, CardSerializer
 
 
 # СКИДКИ
@@ -38,64 +38,38 @@ class UserDiscountRequestsView(generics.ListAPIView):
         return DiscountRequest.objects.filter(user=self.request.user)
 
 
-# РЕКОМЕНДАЦИИ
-class RecommendationAlgorithm:
-    """Алгоритм рекомендаций на основе предпочтений пользователя"""
-
-    def __init__(self, user):
-        self.user = user
-
-    def generate_recommendations(self, limit: int = 10):
-        from .models import Card, Favorite, CardQuestion
-        
-        # Получить исключаемые карточки
-        excluded_ids = set(Favorite.objects.filter(user=self.user).values_list('card', flat=True))
-        excluded_ids.update(CardQuestion.objects.filter(user=self.user).values_list('card', flat=True))
-        
-        # Получить предпочтения
-        preferred_cities = Card.objects.filter(id__in=excluded_ids).values_list('city', flat=True).distinct()
-        preferred_types = Card.objects.filter(id__in=excluded_ids).values_list('house_type', flat=True).distinct()
-        
-        # Построить запрос с предпочтениями
-        queryset = Card.objects.exclude(id__in=excluded_ids)
-        
-        if preferred_cities:
-            queryset = queryset.filter(city__in=preferred_cities)
-        if preferred_types:
-            queryset = queryset.filter(house_type__in=preferred_types)
-        
-        return queryset.order_by('-rating', '-created_at')[:limit]
-
-    def save_recommendations(self, recommendations):
-        """Сохранить рекомендации с оценкой"""
-        for i, card in enumerate(recommendations, 1):
-            score = max(0.5, 1.0 - (i * 0.05))  # Минимум 0.5
-            reason = f"Похожа на ваши избранные (рейтинг: {card.rating})"
-            
-            Recommendation.objects.get_or_create(
-                user=self.user,
-                card=card,
-                defaults={'score': score, 'reason': reason}
-            )
-
-
 @extend_schema(
-    summary="Получить рекомендации для пользователя"
+    summary="Получить рекомендации для текущего пользователя"
 )
 class GetRecommendationsView(generics.ListAPIView):
-    serializer_class = RecommendationSerializer
+    serializer_class = CardSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        recommendations = Recommendation.objects.filter(user=self.request.user)
+        from .models import Favorite, ViewHistory
         
-        if not recommendations.exists():
-            algorithm = RecommendationAlgorithm(self.request.user)
-            cards = algorithm.generate_recommendations()
-            algorithm.save_recommendations(cards)
-            recommendations = Recommendation.objects.filter(user=self.request.user)
+        user = self.request.user
         
-        return recommendations.order_by('-score')
+        # Получаем карточки которые пользователь просматривал
+        viewed_card_ids = ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)
+        
+        if not viewed_card_ids:
+            # Если ничего не просматривал, показываем ТОП рейтинговых
+            return Card.objects.all().order_by('-rating', '-created_at')[:10]
+        
+        # Получаем параметры из последнего просмотра
+        from django.db.models import Q
+        last_viewed = ViewHistory.objects.filter(user=user).latest('viewed_at')
+        card = last_viewed.card
+        
+        # Ищем похожие карточки
+        similar_cards = Card.objects.exclude(id__in=viewed_card_ids)
+        similar_cards = similar_cards.filter(
+            Q(city=card.city) | 
+            Q(price__gte=card.price * 0.7, price__lte=card.price * 1.3)
+        ).order_by('-rating', '-created_at')[:10]
+        
+        return similar_cards
 
 
 # AI АССИСТЕНТ
@@ -158,7 +132,8 @@ class ChatHistoryView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return ChatMessage.objects.filter(user=self.request.user).order_by('-created_at')
+        # Возвращаем последние 10 сообщений
+        return ChatMessage.objects.filter(user=self.request.user).order_by('-created_at')[:10]
 
 
 @extend_schema(

@@ -11,7 +11,10 @@ from .serializers import (
     CustomTokenObtainPairSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
-    TokenSerializer
+    TokenSerializer,
+    ChangePasswordSerializer,
+    UpdateProfileSerializer,
+    DeleteAccountSerializer,
 )
 from rest_framework import generics, permissions
 from .models import Referral, PasswordResetOTP
@@ -182,3 +185,101 @@ def get_referral_link(request):
     code = str(uuid.uuid4())
     link = f"https://dreamhouse05.com/register/?ref={code}"
     return Response({"referral_link": link})
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=ChangePasswordSerializer,
+        responses={200: {"detail": "Password changed successfully"}},
+        tags=["User"],
+        summary="Смена пароля"
+    )
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = request.user
+        old_password = serializer.validated_data['old_password']
+        new_password = serializer.validated_data['new_password']
+        
+        # Проверяем старый пароль
+        if not user.check_password(old_password):
+            return Response(
+                {"detail": "Old password is incorrect"},
+                status=400
+            )
+        
+        # Устанавливаем новый пароль
+        user.set_password(new_password)
+        user.save()
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"User {user.phone_number} changed password")
+        
+        return Response({"detail": "Password changed successfully"}, status=200)
+
+
+class UpdateProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=UpdateProfileSerializer,
+        responses={200: UserSerializer},
+        tags=["User"],
+        summary="Обновить профиль (имя, фото)"
+    )
+    def put(self, request):
+        serializer = UpdateProfileSerializer(
+            request.user, 
+            data=request.data, 
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"User {user.phone_number} updated profile")
+        
+        return Response(UserSerializer(user).data, status=200)
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=DeleteAccountSerializer,
+        responses={204: None},
+        tags=["User"],
+        summary="Удалить аккаунт (необратимо)"
+    )
+    def delete(self, request):
+        serializer = DeleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = request.user
+        password = serializer.validated_data['password']
+        
+        # Проверяем пароль
+        if not user.check_password(password):
+            return Response(
+                {"detail": "Incorrect password"},
+                status=400
+            )
+        
+        phone_number = user.phone_number
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"User {phone_number} deleted account")
+        
+        # Удаляем все данные пользователя (каскадное удаление)
+        user.delete()
+        
+        return Response(
+            {"detail": "Account deleted successfully"}, 
+            status=204
+        )

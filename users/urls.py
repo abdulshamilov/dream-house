@@ -7,7 +7,10 @@ from .views import (
     ReferralListView, 
     get_referral_link,
     PasswordResetRequestView,
-    PasswordResetConfirmView
+    PasswordResetConfirmView,
+    ChangePasswordView,
+    UpdateProfileView,
+    DeleteAccountView,
 )
 
 
@@ -20,4 +23,7 @@ urlpatterns = [
     path('referral-link/', get_referral_link, name='referral-link'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('update-profile/', UpdateProfileView.as_view(), name='update-profile'),
+    path('delete-account/', DeleteAccountView.as_view(), name='delete-account'),
 ]

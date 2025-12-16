@@ -19,6 +19,9 @@ from .views import (
     UserViewHistoryListView,  # 🔑 НОВОЕ
     CardDocumentListsView,  # 🔑 НОВОЕ
     CardDocumentListCreateView,  # 🔑 НОВОЕ
+    ReviewListCreateView,  # 🔑 НОВОЕ
+    ReviewDetailView,  # 🔑 НОВОЕ
+    CardCurationsView,  # 🔑 НОВОЕ
 )
 from .views_ai import (
     DiscountRequestCreateView,
@@ -40,6 +43,9 @@ urlpatterns = [
     path("<int:pk>/videos/add/", CardVideoCreateView.as_view(), name="card_video_add"),
     path("<int:pk>/reviews/add/", CardReviewCreateView.as_view(), name="card_review_add"),
     path("reviews/<int:id>/", CardReviewDetailView.as_view(), name="card_review_detail"),
+    path("<int:card_pk>/user-reviews/", ReviewListCreateView.as_view(), name="card_user_reviews"),
+    path("user-reviews/<int:pk>/", ReviewDetailView.as_view(), name="user_review_detail"),
+    path("<int:pk>/curations/", CardCurationsView.as_view(), name="card_curations"),
     path("<int:pk>/questions/add/", CardQuestionCreateView.as_view(), name="card_question_add"),
     path("questions/", CardQuestionListView.as_view(), name="card_question_list"),
     path("questions/<int:id>/", CardQuestionDetailView.as_view(), name="card_question_detail"),

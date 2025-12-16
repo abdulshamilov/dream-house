@@ -1,7 +1,7 @@
 import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Card
+from .models import Card, DiscountRequest, Review
 from developers.models import Subscription
 from notifications.models import Notification
 
@@ -39,14 +39,79 @@ def notify_developer_subscribers(sender, instance, created, **kwargs):
     if HAS_CHANNELS:
         try:
             channel_layer = get_channel_layer()
-            for sub in subs:
+            if channel_layer is not None:
+                for sub in subs:
+                    async_to_sync(channel_layer.group_send)(
+                        f"user_{sub.user.id}",
+                        {
+                            "type": "send_notification",
+                            "title": "Новая квартира от вашего девелопера",
+                            "message": f"{instance.title} — {instance.price}₽, {instance.rooms} комн."
+                        }
+                    )
+        except Exception as e:
+            logger.warning(f"WebSocket error: {e}")
+
+
+@receiver(post_save, sender=DiscountRequest)
+def notify_on_discount_request(sender, instance, created, **kwargs):
+    """
+    Создаёт уведомления для владельца квартиры и пользователя при скидке
+    """
+    if not created:
+        return
+
+    # Уведомление для владельца квартиры
+    if instance.card.owner:
+        Notification.objects.create(
+            user=instance.card.owner,
+            title="Запрос на скидку",
+            message=f"Пользователь предложил {instance.requested_price}₽ за {instance.card.title} (было {instance.original_price}₽)"
+        )
+
+    # Уведомление для пользователя
+    Notification.objects.create(
+        user=instance.user,
+        title="Ваш запрос на скидку отправлен",
+        message=f"Запрос на скидку отправлен владельцу {instance.card.title}. Статус: На рассмотрении"
+    )
+
+    # WebSocket уведомления (только если channels настроены)
+    if HAS_CHANNELS:
+        try:
+            channel_layer = get_channel_layer()
+            
+            # Проверить что channel_layer не None
+            if channel_layer is None:
+                return
+            
+            # Уведомление владельцу
+            if instance.card.owner:
                 async_to_sync(channel_layer.group_send)(
-                    f"user_{sub.user.id}",
+                    f"user_{instance.card.owner.id}",
                     {
                         "type": "send_notification",
-                        "title": "Новая квартира от вашего девелопера",
-                        "message": f"{instance.title} — {instance.price}₽, {instance.rooms} комн."
+                        "title": "Запрос на скидку",
+                        "message": f"Пользователь предложил {instance.requested_price}₽ за {instance.card.title}"
                     }
                 )
+            
+            # Уведомление пользователю
+            async_to_sync(channel_layer.group_send)(
+                f"user_{instance.user.id}",
+                {
+                    "type": "send_notification",
+                    "title": "Ваш запрос на скидку отправлен",
+                    "message": f"Запрос отправлен владельцу {instance.card.title}"
+                }
+            )
         except Exception as e:
-            logger.exception("Ошибка при отправке WebSocket уведомления: %s", e)
+            logger.warning(f"WebSocket error: {e}")
+
+
+@receiver(post_save, sender=Review)
+def update_card_rating_on_review(sender, instance, **kwargs):
+    """
+    Автоматически обновляет рейтинг карточки при создании/обновлении отзыва
+    """
+    instance.card.update_rating()

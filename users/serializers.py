@@ -107,6 +107,29 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ("id", "phone_number", "name", "profile_photo")
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True, min_length=6)
+    new_password_confirm = serializers.CharField(write_only=True, required=True, min_length=6)
+    
+    def validate(self, data):
+        if data['new_password'] != data['new_password_confirm']:
+            raise serializers.ValidationError({"new_password_confirm": "Passwords do not match"})
+        if data['old_password'] == data['new_password']:
+            raise serializers.ValidationError({"new_password": "New password must be different from old password"})
+        return data
+
+
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('name', 'profile_photo')
+
+
+class DeleteAccountSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, required=True)
+
+
 class ReferralSerializer(serializers.ModelSerializer):
     referred_name = serializers.CharField(source='referred.name', read_only=True)
     referred_phone = serializers.CharField(source='referred.phone_number', read_only=True)

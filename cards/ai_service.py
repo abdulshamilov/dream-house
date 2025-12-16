@@ -75,24 +75,8 @@ class AIAssistantService:
         """
         queryset = self.Card.objects.all()
         
-        # Полнотекстовый поиск по ключевым словам
-        if query and query.strip():
-            # Разделить запрос на ключевые слова
-            keywords = query.lower().split()
-            q_objects = Q()
-            
-            for keyword in keywords:
-                q_objects |= (
-                    Q(title__icontains=keyword) |
-                    Q(description__icontains=keyword) |
-                    Q(address__icontains=keyword) |
-                    Q(city__in=self._parse_city_from_query(keyword))
-                )
-            
-            queryset = queryset.filter(q_objects)
-        
-        # Применить предпочтения пользователя (фильтрация)
-        if preferences and isinstance(preferences, dict):
+        # Применить предпочтения пользователя (фильтрация) - ПЕРВЫЙ ПРИОРИТЕТ
+        if preferences and isinstance(preferences, dict) and any(v is not None for v in preferences.values()):
             filter_map = {
                 'city': 'city',
                 'rooms': 'rooms',
@@ -107,6 +91,23 @@ class AIAssistantService:
                         queryset = queryset.filter(**{filter_key: preferences[pref_key]})
                     except (ValueError, TypeError) as e:
                         logger.warning(f"Invalid filter value for {pref_key}: {e}")
+        
+        # Полнотекстовый поиск по ключевым словам (только если есть query)
+        # Но НЕ если мы уже фильтровали по параметрам
+        if query and query.strip() and (not preferences or not any(v is not None for v in preferences.values())):
+            # Разделить запрос на ключевые слова
+            keywords = query.lower().split()
+            q_objects = Q()
+            
+            for keyword in keywords:
+                q_objects |= (
+                    Q(title__icontains=keyword) |
+                    Q(description__icontains=keyword) |
+                    Q(address__icontains=keyword) |
+                    Q(city__in=self._parse_city_from_query(keyword))
+                )
+            
+            queryset = queryset.filter(q_objects)
         
         # Сортировка по релевантности (рейтинг и свежесть)
         queryset = queryset.order_by('-rating', '-created_at')
@@ -142,7 +143,161 @@ class AIAssistantService:
             'parking': card.get_parking_display() if hasattr(card, 'get_parking_display') else card.parking,
         }
 
-    def chat(self, user_message: str, user_preferences: Optional[Dict] = None, user_id: Optional[int] = None, mode: str = 'search') -> Dict:
+    def _parse_price_from_text(self, text: str) -> tuple:
+        """
+        Парсить ограничения по цене из текста
+        Возвращает кортеж (price_min, price_max)
+        
+        Примеры:
+        - "до 2млн" -> (None, 2000000)
+        - "от 1млн до 3млн" -> (1000000, 3000000)
+        - "2000000" -> (None, 2000000)
+        """
+        import re
+        
+        text_lower = text.lower()
+        price_min, price_max = None, None
+        
+        # Ищем "до X млн" или "до X миллионов"
+        match_max = re.search(r'до\s+(\d+(?:[.,]\d+)?)\s*(?:млн|миллион)', text_lower)
+        if match_max:
+            max_val = float(match_max.group(1).replace(',', '.'))
+            price_max = int(max_val * 1_000_000)
+        
+        # Ищем "от X млн"
+        match_min = re.search(r'от\s+(\d+(?:[.,]\d+)?)\s*(?:млн|миллион)', text_lower)
+        if match_min:
+            min_val = float(match_min.group(1).replace(',', '.'))
+            price_min = int(min_val * 1_000_000)
+        
+        # Ищем диапазон "X млн до Y млн"
+        match_range = re.search(r'(\d+(?:[.,]\d+)?)\s*млн\s+до\s+(\d+(?:[.,]\d+)?)\s*млн', text_lower)
+        if match_range:
+            min_val = float(match_range.group(1).replace(',', '.'))
+            max_val = float(match_range.group(2).replace(',', '.'))
+            price_min = int(min_val * 1_000_000)
+            price_max = int(max_val * 1_000_000)
+        
+        # Ищем "в районе X млн" или "около X млн"
+        match_around = re.search(r'(?:в районе|около)\s+(\d+(?:[.,]\d+)?)\s*млн', text_lower)
+        if match_around:
+            val = float(match_around.group(1).replace(',', '.'))
+            center = int(val * 1_000_000)
+            # ±20% от значения
+            price_min = int(center * 0.8)
+            price_max = int(center * 1.2)
+        
+        return price_min, price_max
+
+    def _parse_rooms_from_text(self, text: str) -> Optional[int]:
+        """
+        Парсить количество комнат из текста
+        Примеры: "1-комнатная", "двухкомнатная", "3 комнаты"
+        """
+        import re
+        
+        text_lower = text.lower()
+        
+        # Ищем "X-комнатная", "Xк"
+        match = re.search(r'(\d+)\s*[к-]*комнатн', text_lower)
+        if match:
+            return int(match.group(1))
+        
+        # Ищем словесные обозначения
+        word_map = {
+            'однокомнатн': 1,
+            'двухкомнатн': 2,
+            'трехкомнатн': 3,
+            'четырехкомнатн': 4,
+            'пятикомнатн': 5,
+        }
+        
+        for word, rooms in word_map.items():
+            if word in text_lower:
+                return rooms
+        
+        return None
+
+    def _parse_city_from_text(self, text: str) -> Optional[int]:
+        """
+        Парсить город из текста
+        Возвращает ID города или None
+        """
+        text_lower = text.lower()
+        
+        city_map = {
+            'махачкала': 1,
+            'махачкале': 1,
+            'каспийск': 2,
+            'каспийске': 2,
+            'дербент': 3,
+            'дербенте': 3,
+        }
+        
+        for city_name, city_id in city_map.items():
+            if city_name in text_lower:
+                return city_id
+        
+        return None
+
+    def _parse_house_type_from_text(self, text: str) -> Optional[str]:
+        """
+        Парсить тип дома из текста
+        Возвращает тип дома: 'apartment', 'house', 'townhouse' и т.д.
+        """
+        text_lower = text.lower()
+        
+        type_map = {
+            'квартира': 'apartment',
+            'дом': 'house',
+            'коттедж': 'house',
+            'таунхаус': 'townhouse',
+            'студия': 'studio',
+            'офис': 'office',
+        }
+        
+        for type_name, type_code in type_map.items():
+            if type_name in text_lower:
+                return type_code
+        
+        return None
+
+    def _is_realty_related(self, text: str) -> bool:
+        """
+        Проверить, относится ли вопрос к недвижимости/квартирам
+        """
+        realty_keywords = [
+            'квартира', 'квартиры', 'квартир', 'квартире', 'квартирам',
+            'дом', 'дома', 'домов', 'доме', 'домам',
+            'недвижимость', 'недвижимости',
+            'апартамент', 'апартаменты',
+            'коттедж', 'коттеджи',
+            'офис', 'офисы',
+            'студия', 'студии',
+            'двухкомнатн', 'трехкомнатн', 'четырехкомнатн',
+            'комната', 'комнаты', 'комнат',
+            'площадь', 'метры', 'метров', 'м²',
+            'цена', 'стоимость', 'рублей', '₽',
+            'этаж', 'этажность',
+            'балкон', 'балконы',
+            'парковка', 'парковки',
+            'лифт', 'лифты', 'лифта',
+            'ремонт', 'отремонтирова',
+            'мебель', 'мебелирова',
+            'город', 'махачкала', 'каспийск', 'дербент',
+            'район', 'районе',
+            'купить', 'продать', 'сдать', 'снять',
+            'аренда', 'аренде',
+            'ипотека', 'ипотеку', 'ипотекой',
+            'кредит',
+            'застройщик', 'разработчик',
+            'документ', 'документы',
+        ]
+        
+        text_lower = text.lower()
+        return any(keyword in text_lower for keyword in realty_keywords)
+
+    def chat(self, user_message: str, user_preferences: Optional[Dict] = None, user_id: Optional[int] = None, mode: str = 'search', chat_history: Optional[List[Dict]] = None) -> Dict:
         """
         Отправить сообщение AI и получить ответ
         
@@ -180,27 +335,75 @@ class AIAssistantService:
             
             # Режим поиска квартир - ищет в БД и строит контекст с результатами
             if mode == 'search':
-                logger.info("Searching cards...")
-                search_results = self.search_cards(user_message, user_preferences, limit=5)
-                logger.info(f"Found {len(search_results)} cards")
+                # Проверить, относится ли вопрос к недвижимости
+                is_realty_question = self._is_realty_related(user_message)
                 
-                # Если поиск не вернул результаты, показать ВСЕ доступные
-                if not search_results:
-                    all_cards = self.Card.objects.all().order_by('-rating', '-created_at')[:5]
-                    search_results = [self._format_card(card) for card in all_cards]
-                    logger.info(f"Using top {len(search_results)} cards instead")
-                
-                context = self._build_context(user_message, search_results, user_preferences)
-                logger.info(f"Context built: {len(context)} chars")
+                if is_realty_question:
+                    logger.info("Realty-related question detected. Searching cards...")
+                    
+                    # Парсить параметры из текста, если они не переданы
+                    if not user_preferences:
+                        user_preferences = {}
+                    
+                    # Парсить цену из текста
+                    price_min, price_max = self._parse_price_from_text(user_message)
+                    if price_min is not None:
+                        user_preferences['price_min'] = price_min
+                    if price_max is not None:
+                        user_preferences['price_max'] = price_max
+                    
+                    # Парсить комнаты из текста
+                    rooms = self._parse_rooms_from_text(user_message)
+                    if rooms is not None:
+                        user_preferences['rooms'] = rooms
+                    
+                    # Парсить город из текста
+                    city = self._parse_city_from_text(user_message)
+                    if city is not None:
+                        user_preferences['city'] = city
+                    
+                    # Парсить тип дома из текста
+                    house_type = self._parse_house_type_from_text(user_message)
+                    if house_type is not None:
+                        user_preferences['house_type'] = house_type
+                    
+                    logger.info(f"Parsed preferences: {user_preferences}")
+                    
+                    # Попытка 1: ищем с ВСЕ парсанные фильтры
+                    search_results = self.search_cards(user_message, user_preferences, limit=5)
+                    logger.info(f"Found {len(search_results)} cards with strict filters")
+                    
+                    # Попытка 2: если ничего не нашли с фильтрами, ищем БЕЗ фильтров (ТОП)
+                    if not search_results:
+                        logger.info("No strict matches. Searching top available cards...")
+                        search_results = self.search_cards(user_message, preferences=None, limit=5)
+                        logger.info(f"Found {len(search_results)} top cards")
+                    
+                    if search_results:
+                        context = self._build_context(user_message, search_results, user_preferences)
+                        logger.info(f"Context built with {len(search_results)} cards")
+                    else:
+                        # Совсем ничего не нашли - предложить уточнить
+                        context = f"[Нет вариантов по запросу. Предложи уточнить: другой район, другой бюджет, расширить поиск. Будь дружелюбным и конкретным.]\n\nЗапрос: {user_message}"
+                else:
+                    logger.info("Question is NOT realty-related. Responding without card search.")
+                    # Добавить пометку для AI что это не про недвижимость
+                    context = f"[Это НЕ вопрос про недвижимость. Ответь дружелюбно на вопрос, потом предложи помощь с квартирами]\n\nВопрос: {user_message}"
             
             # Режим свободного чата - просто отправляем сообщение без дополнительного контекста
             elif mode == 'free':
                 # Для режима free можно добавить более креативный системный промпт
                 context = user_message
             
+            # Добавить историю чата если есть user_id
+            if user_id:
+                history_context = self._get_chat_history(user_id, limit=10)
+                if history_context:
+                    context = f"{history_context}\nТекущий запрос: {context}"
+            
             # Отправить запрос к API
             logger.info(f"Calling AI API with context...")
-            response_data = self._call_api(context)
+            response_data = self._call_api(context, chat_history, user_message)
             logger.info(f"API response: success={response_data['success']}")
             
             if response_data['success']:
@@ -258,7 +461,7 @@ class AIAssistantService:
         
         return context
 
-    def _call_api(self, context: str) -> Dict:
+    def _call_api(self, context: str, chat_history: Optional[List[Dict]] = None, user_message: str = "") -> Dict:
         """Отправить запрос к API провайдера"""
         if not self.config or not self.client:
             return {
@@ -278,19 +481,33 @@ class AIAssistantService:
             logger.error(error_msg)
             return {'success': False, 'error': error_msg}
         
-        return api_method(context)
+        return api_method(context, chat_history, user_message)
 
-    def _call_openai(self, context: str) -> Dict:
+    def _build_messages_with_history(self, context: str, chat_history: Optional[List[Dict]] = None, user_message: str = "") -> List[Dict]:
+        """Построить список сообщений с историей для API"""
+        messages = [{"role": "system", "content": self.config.system_prompt}]
+        
+        # Добавить историю чата если она есть
+        if chat_history:
+            for msg in chat_history[-5:]:  # Последние 5 сообщений для контекста
+                if 'role' in msg and 'content' in msg:
+                    messages.append(msg)
+        
+        # Добавить текущее сообщение (с контекстом поиска если нужно)
+        messages.append({"role": "user", "content": context})
+        
+        return messages
+
+    def _call_openai(self, context: str, chat_history: Optional[List[Dict]] = None, user_message: str = "") -> Dict:
         """Вызвать OpenAI API"""
         try:
+            messages = self._build_messages_with_history(context, chat_history, user_message)
+            
             message = self.client.chat.completions.create(
                 model=self.config.model_name,
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
-                messages=[
-                    {"role": "system", "content": self.config.system_prompt},
-                    {"role": "user", "content": context}
-                ]
+                messages=messages
             )
 
             return {
@@ -303,19 +520,20 @@ class AIAssistantService:
             logger.exception(f"OpenAI API error: {e}")
             return {'success': False, 'error': str(e)}
 
-    def _call_anthropic(self, context: str) -> Dict:
+    def _call_anthropic(self, context: str, chat_history: Optional[List[Dict]] = None, user_message: str = "") -> Dict:
         """Вызвать Anthropic Claude API"""
         try:
+            messages = self._build_messages_with_history(context, chat_history, user_message)
+            
+            # Для Anthropic нужно отделить system от остальных messages
+            system_msg = messages[0]['content'] if messages and messages[0]['role'] == 'system' else self.config.system_prompt
+            user_messages = messages[1:] if len(messages) > 1 else [{"role": "user", "content": context}]
+            
             message = self.client.messages.create(
                 model=self.config.model_name,
                 max_tokens=self.config.max_tokens,
-                system=self.config.system_prompt,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": context
-                    }
-                ],
+                system=system_msg,
+                messages=user_messages,
                 temperature=self.config.temperature,
             )
 
@@ -335,23 +553,22 @@ class AIAssistantService:
                 'error': str(e)
             }
 
-    def _call_deepseek(self, context: str) -> Dict:
+    def _call_deepseek(self, context: str, chat_history: Optional[List[Dict]] = None, user_message: str = "") -> Dict:
         """Вызвать DeepSeek API (OpenAI-совместимый)"""
         try:
             # DeepSeek модель ВСЕГДА 'deepseek-chat'
             model_name = 'deepseek-chat'
             
-            logger.info(f"Calling DeepSeek API with {len(context)} chars context, max_tokens={self.config.max_tokens}")
+            messages = self._build_messages_with_history(context, chat_history, user_message)
+            
+            logger.info(f"Calling DeepSeek API with {len(context)} chars context, {len(messages)} messages, max_tokens={self.config.max_tokens}")
             
             # Добавляем timeout для запроса (30 секунд)
             message = self.client.chat.completions.create(
                 model=model_name,
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
-                messages=[
-                    {"role": "system", "content": self.config.system_prompt},
-                    {"role": "user", "content": context}
-                ],
+                messages=messages,
                 timeout=30.0  # 30 секунд timeout
             )
 
@@ -427,4 +644,31 @@ class AIAssistantService:
 
         except Exception as e:
             logger.exception(f"Failed to save chat history: {e}")
+            return None
+
+    def _get_chat_history(self, user_id: int, limit: int = 10) -> str:
+        """Получить последние N сообщений из истории для контекста"""
+        try:
+            from .models import ChatMessage
+            from django.contrib.auth import get_user_model
+            
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+            
+            messages = ChatMessage.objects.filter(user=user).order_by('-created_at')[:limit]
+            
+            if not messages:
+                return ""
+            
+            # Формируем текст истории в обратном порядке (старые → новые)
+            history = "История предыдущих сообщений:\n"
+            for msg in reversed(messages):
+                history += f"Пользователь: {msg.message[:100]}...\n" if len(msg.message) > 100 else f"Пользователь: {msg.message}\n"
+                if msg.response:
+                    history += f"Ассистент: {msg.response[:100]}...\n\n" if len(msg.response) > 100 else f"Ассистент: {msg.response}\n\n"
+            
+            return history
+        except Exception as e:
+            logger.warning(f"Failed to get chat history: {e}")
+            return ""
             return None
