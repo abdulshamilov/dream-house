@@ -297,15 +297,118 @@ class AIAssistantService:
         text_lower = text.lower()
         return any(keyword in text_lower for keyword in realty_keywords)
 
+    def _needs_recommendations(self, text: str) -> bool:
+        """
+        ✅ НОВОЕ: Определить нужны ли рекомендации квартир в ответе
+        
+        Возвращает True если пользователь просит рекомендации/подборку
+        """
+        recommendation_keywords = [
+            'рекомендуй', 'рекомендация',
+            'предложи', 'предложение',
+            'показа', 'покажи', 'показать',
+            'найди', 'найти', 'ищу', 'ищите',
+            'подбери', 'подборка',
+            'какие квартиры', 'какие варианты',
+            'есть ли', 'есть', 'имеетесь',
+            'подходит', 'подходящие',
+            'лучше', 'хорошие', 'качественные',
+            'похожие', 'подобные',
+            'интересуюсь', 'интересует', 'интересуют',
+            'хочу', 'хотим', 'хотят',
+            'нужна', 'нужны', 'нужен',
+            'ищу квартиру', 'ищу дом',
+            'ищу апартамент',
+        ]
+        
+        text_lower = text.lower()
+        # Если вопрос про недвижимость И есть хотя бы одно ключевое слово поиска
+        return self._is_realty_related(text) and any(
+            keyword in text_lower for keyword in recommendation_keywords
+        )
+
+    def _smart_search_with_fallback(self, user_message: str, preferences: Dict) -> List[Dict]:
+        """
+        ✅ НОВОЕ: Умный поиск с нескольными уровнями fallback
+        
+        1. Попытка с парсанными фильтрами
+        2. Fallback на менее строгие фильтры
+        3. Поиск по тексту без фильтров
+        4. Топ рейтинг-рейтинговых вариантов
+        """
+        import re
+        
+        # Парсить параметры из текста, если они не переданы
+        if not preferences:
+            preferences = {}
+        
+        # Парсить цену из текста
+        price_min, price_max = self._parse_price_from_text(user_message)
+        if price_min is not None:
+            preferences['price_min'] = price_min
+        if price_max is not None:
+            preferences['price_max'] = price_max
+        
+        # Парсить комнаты из текста
+        rooms = self._parse_rooms_from_text(user_message)
+        if rooms is not None:
+            preferences['rooms'] = rooms
+        
+        # Парсить город из текста
+        city = self._parse_city_from_text(user_message)
+        if city is not None:
+            preferences['city'] = city
+        
+        # Парсить тип дома из текста
+        house_type = self._parse_house_type_from_text(user_message)
+        if house_type is not None:
+            preferences['house_type'] = house_type
+        
+        logger.info(f"🔍 Parsed preferences: {preferences}")
+        
+        # ✅ Уровень 1: Попытка с ВСЕ фильтрами (максимально строгий)
+        if any(v is not None for v in preferences.values()):
+            search_results = self.search_cards(user_message, preferences, limit=6)
+            if search_results:
+                logger.info(f"✅ Level 1: Found {len(search_results)} cards with all filters")
+                return search_results
+        
+        # ✅ Уровень 2: Попытка с ОСНОВНЫМИ фильтрами (без опциональных)
+        main_preferences = {
+            k: v for k, v in preferences.items() 
+            if k in ['city', 'rooms', 'house_type'] and v is not None
+        }
+        if main_preferences:
+            search_results = self.search_cards(user_message, main_preferences, limit=6)
+            if search_results:
+                logger.info(f"✅ Level 2: Found {len(search_results)} cards with main filters")
+                return search_results
+        
+        # ✅ Уровень 3: Попытка БЕЗ фильтров (по тексту с рейтингом)
+        logger.info("➡️ Level 3: Searching without filters (text-based)")
+        search_results = self.search_cards(user_message, preferences=None, limit=6)
+        if search_results:
+            logger.info(f"✅ Level 3: Found {len(search_results)} cards by text")
+            return search_results
+        
+        # ✅ Уровень 4: Полная fallback - Топ рейтинговые карточки
+        logger.info("⚠️ Level 4: No matches. Returning top rated apartments")
+        try:
+            top_cards = self.Card.objects.all().order_by('-rating', '-created_at')[:6]
+            return [self._format_card(card) for card in top_cards]
+        except Exception as e:
+            logger.error(f"Error in Level 4 fallback: {e}")
+            return []
+
     def chat(self, user_message: str, user_preferences: Optional[Dict] = None, user_id: Optional[int] = None, mode: str = 'search', chat_history: Optional[List[Dict]] = None) -> Dict:
         """
-        Отправить сообщение AI и получить ответ
+        Отправить сообщение AI и получить ответ с автоматическим распознаванием нужды в рекомендациях
         
         Args:
             user_message: Сообщение от пользователя
             user_preferences: Предпочтения пользователя для режима поиска
             user_id: ID пользователя для сохранения истории
-            mode: 'search' - поиск квартир, 'free' - обычный чат без поиска
+            mode: 'search' - автоматический поиск, 'free' - обычный чат
         
         Returns:
             Словарь с ответом и информацией
@@ -333,64 +436,41 @@ class AIAssistantService:
             
             logger.info(f"AI Chat called: mode={mode}, message_len={len(user_message)}")
             
-            # Режим поиска квартир - ищет в БД и строит контекст с результатами
-            if mode == 'search':
-                # Проверить, относится ли вопрос к недвижимости
-                is_realty_question = self._is_realty_related(user_message)
+            # ✅ НОВОЕ: Автоматическое распознавание когда нужны рекомендации
+            is_realty_question = self._is_realty_related(user_message)
+            needs_recommendations = self._needs_recommendations(user_message)
+            
+            # Режим 'search' - УМНЫЙ РЕЖИМ с автоматическим поиском
+            if mode == 'search' or (is_realty_question and needs_recommendations):
                 
                 if is_realty_question:
-                    logger.info("Realty-related question detected. Searching cards...")
+                    logger.info("🏠 Realty-related question detected. Smart search enabled.")
                     
                     # Парсить параметры из текста, если они не переданы
                     if not user_preferences:
                         user_preferences = {}
                     
-                    # Парсить цену из текста
-                    price_min, price_max = self._parse_price_from_text(user_message)
-                    if price_min is not None:
-                        user_preferences['price_min'] = price_min
-                    if price_max is not None:
-                        user_preferences['price_max'] = price_max
+                    # ✅ УЛУЧШЕНО: Более гибкий парсинг с fallback
+                    search_results = self._smart_search_with_fallback(
+                        user_message, 
+                        user_preferences
+                    )
                     
-                    # Парсить комнаты из текста
-                    rooms = self._parse_rooms_from_text(user_message)
-                    if rooms is not None:
-                        user_preferences['rooms'] = rooms
-                    
-                    # Парсить город из текста
-                    city = self._parse_city_from_text(user_message)
-                    if city is not None:
-                        user_preferences['city'] = city
-                    
-                    # Парсить тип дома из текста
-                    house_type = self._parse_house_type_from_text(user_message)
-                    if house_type is not None:
-                        user_preferences['house_type'] = house_type
-                    
-                    logger.info(f"Parsed preferences: {user_preferences}")
-                    
-                    # Попытка 1: ищем с ВСЕ парсанные фильтры
-                    search_results = self.search_cards(user_message, user_preferences, limit=5)
-                    logger.info(f"Found {len(search_results)} cards with strict filters")
-                    
-                    # Попытка 2: если ничего не нашли с фильтрами, ищем БЕЗ фильтров (ТОП)
-                    if not search_results:
-                        logger.info("No strict matches. Searching top available cards...")
-                        search_results = self.search_cards(user_message, preferences=None, limit=5)
-                        logger.info(f"Found {len(search_results)} top cards")
+                    logger.info(f"Found {len(search_results)} cards")
                     
                     if search_results:
                         context = self._build_context(user_message, search_results, user_preferences)
                         logger.info(f"Context built with {len(search_results)} cards")
                     else:
                         # Совсем ничего не нашли - предложить уточнить
-                        context = f"[Нет вариантов по запросу. Предложи уточнить: другой район, другой бюджет, расширить поиск. Будь дружелюбным и конкретным.]\n\nЗапрос: {user_message}"
+                        context = f"[Нет вариантов по запросу: {user_message}. Предложи уточнить: другой район, другой бюджет, расширить поиск. Будь дружелюбным и конкретным.]"
+                
                 else:
-                    logger.info("Question is NOT realty-related. Responding without card search.")
-                    # Добавить пометку для AI что это не про недвижимость
-                    context = f"[Это НЕ вопрос про недвижимость. Ответь дружелюбно на вопрос, потом предложи помощь с квартирами]\n\nВопрос: {user_message}"
+                    logger.info("❓ Question is NOT realty-related but search mode enabled")
+                    # Не про недвижимость, но запрошен режим search
+                    context = f"[Это НЕ вопрос про недвижимость. Ответь дружелюбно на вопрос, потом предложи помощь с поиском квартир]\n\nВопрос: {user_message}"
             
-            # Режим свободного чата - просто отправляем сообщение без дополнительного контекста
+            # Режим 'free' - обычный чат БЕЗ обязательного поиска
             elif mode == 'free':
                 # Для режима free можно добавить более креативный системный промпт
                 context = user_message
