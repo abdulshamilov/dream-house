@@ -1,7 +1,7 @@
 import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Card, DiscountRequest, Review
+from .models import Card, DiscountRequest
 from developers.models import Subscription
 from notifications.models import Notification
 
@@ -107,11 +107,3 @@ def notify_on_discount_request(sender, instance, created, **kwargs):
             )
         except Exception as e:
             logger.warning(f"WebSocket error: {e}")
-
-
-@receiver(post_save, sender=Review)
-def update_card_rating_on_review(sender, instance, **kwargs):
-    """
-    Автоматически обновляет рейтинг карточки при создании/обновлении отзыва
-    """
-    instance.card.update_rating()

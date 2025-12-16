@@ -38,56 +38,51 @@ class Card(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='cards',
-        verbose_name="Владелец"
+        related_name='cards'
     )
     developer = models.ForeignKey(
         'developers.Developer',
         on_delete=models.CASCADE,
         related_name='cards',
         null=True,
-        blank=True,
-        verbose_name="Девелопер"
+        blank=True
     )
 
-    title = models.CharField(max_length=255, verbose_name="Название")
-    address = models.CharField(max_length=255, verbose_name="Адрес")
-    description = models.TextField(verbose_name="Описание")
-    price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Цена")
-    rooms = models.PositiveIntegerField(default=1, verbose_name="Комнаты")
-    city = models.IntegerField(choices=CITY_CHOICES, default=1, verbose_name="Город")
-    house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='apartment', verbose_name="Тип дома")
+    title = models.CharField(max_length=255)
+    address = models.CharField(max_length=255)
+    description = models.TextField()
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    rooms = models.PositiveIntegerField(default=1)
+    city = models.IntegerField(choices=CITY_CHOICES, default=1)
+    house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='apartment')
 
-    area = models.DecimalField(max_digits=6, decimal_places=2, default=0.0, verbose_name="Площадь м²")
-    building_material = models.CharField(max_length=50, choices=BUILDING_MATERIAL_CHOICES, default='brick', verbose_name="Материал")
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='flat', verbose_name="Категория")
-    floors_total = models.PositiveIntegerField(default=1, verbose_name="Этажей в доме")
-    elevator = models.CharField(max_length=20, choices=ELEVATOR_CHOICES, default='none', verbose_name="Лифт")
-    parking = models.CharField(max_length=20, choices=PARKING_CHOICES, default='none', verbose_name="Парковка")
-    balcony = models.BooleanField(default=False, verbose_name="Балкон")
-    ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50, verbose_name="Высота потолков")
+    area = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
+    building_material = models.CharField(max_length=50, choices=BUILDING_MATERIAL_CHOICES, default='brick')
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='flat')
+    floors_total = models.PositiveIntegerField(default=1)
+    elevator = models.CharField(max_length=20, choices=ELEVATOR_CHOICES, default='none')
+    parking = models.CharField(max_length=20, choices=PARKING_CHOICES, default='none')
+    balcony = models.BooleanField(default=False)
+    ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50)
 
-    latitude = models.FloatField(null=True, blank=True, verbose_name="Широта")
-    longitude = models.FloatField(null=True, blank=True, verbose_name="Долгота")
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
 
-    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, verbose_name="Рейтинг")
-    rating_count = models.PositiveIntegerField(default=0, verbose_name="Количество оценок")
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
+    rating_count = models.PositiveIntegerField(default=0)
     
     # 🔑 НОВОЕ: Поле для подборок (списков похожих квартир)
     # Может содержать несколько карточек в виде JSON или как M2M связь
     list_curations = models.TextField(
         default='[]',
         blank=True,
-        help_text="JSON массив с объектами карточек для подборок. Каждый объект содержит: id, address, price, rooms, city, rating",
-        verbose_name="Подборки"
+        help_text="JSON массив ID карточек для подборок (рекомендации, похожие объекты)"
     )
 
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
-        verbose_name = "Квартира"
-        verbose_name_plural = "Квартиры"
         indexes = [
             models.Index(fields=['title']),
             models.Index(fields=['city']),
@@ -100,169 +95,54 @@ class Card(models.Model):
     def __str__(self):
         return self.title
     
-    def update_rating(self):
-        """Обновить рейтинг на основе отзывов"""
-        from django.db.models import Avg
-        avg_rating = self.user_reviews.aggregate(Avg('rating'))['rating__avg']
-        if avg_rating:
-            self.rating = round(avg_rating, 2)
-            self.rating_count = self.user_reviews.count()
-            self.save(update_fields=['rating', 'rating_count'])
-    
-    def generate_curations(self, user=None, limit: int = 5):
-        """
-        Генерирует подборку похожих квартир
-        Алгоритм: если есть user, ищет похожие на его предпочтения
-        Иначе ищет похожие по параметрам (город, цена, комнаты)
-        """
-        import json
-        from django.db.models import Q
-        
-        similar_cards = Card.objects.exclude(id=self.id)
-        
-        # Если есть пользователь, смотрим его просмотры/избранное
-        if user:
-            from .models import Favorite, ViewHistory
-            # Карточки которые он уже смотрел
-            viewed_cards = ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)
-            # Карточки которые добавил в избранное
-            favorite_cards = Favorite.objects.filter(user=user).values_list('card_id', flat=True)
-            # Исключим уже просмотренные
-            similar_cards = similar_cards.exclude(id__in=list(viewed_cards) + list(favorite_cards))
-        
-        # Сортируем по параметрам:
-        # 1. Тот же город
-        # 2. Похожая цена (±30%)
-        # 3. Похожее количество комнат
-        from decimal import Decimal
-        price_min = self.price * Decimal('0.7')
-        price_max = self.price * Decimal('1.3')
-        
-        q_filter = Q(city=self.city)
-        q_filter |= Q(
-            price__gte=price_min,
-            price__lte=price_max,
-            rooms=self.rooms
-        )
-        
-        similar_cards = similar_cards.filter(q_filter).order_by('-rating', '-created_at')[:limit]
-        
-        # Формируем JSON с полной информацией
-        curations = []
-        for card in similar_cards:
-            curations.append({
-                'id': card.id,
-                'address': card.address,
-                'price': float(card.price),
-                'rooms': card.rooms,
-                'city': card.get_city_display(),
-                'rating': float(card.rating),
-                'title': card.title,
-            })
-        
-        self.list_curations = json.dumps(curations, ensure_ascii=False)
-        self.save(update_fields=['list_curations'])
-        
-        return curations
-    
     
 class CallRequest(models.Model):
     card = models.ForeignKey(
         Card,
         on_delete=models.CASCADE,
-        related_name='call_requests',
-        verbose_name="Квартира"
+        related_name='call_requests'
     )
-    name = models.CharField(max_length=100, verbose_name="Имя")
-    phone_number = models.CharField(max_length=20, verbose_name="Телефон")
-    preferred_time = models.CharField(max_length=100, blank=True, verbose_name="Предпочитаемое время")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
-    is_processed = models.BooleanField(default=False, verbose_name="Обработана")
-
-    class Meta:
-        verbose_name = "Заявка на звонок"
-        verbose_name_plural = "Заявки на звонок"
-        ordering = ['-created_at']
+    name = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=20)
+    preferred_time = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_processed = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Заявка от {self.name} ({self.phone_number})"
 
 
-class Review(models.Model):
-    """Отзывы пользователей о карточках"""
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='user_reviews',
-        verbose_name="Пользователь"
-    )
-    card = models.ForeignKey(
-        Card,
-        on_delete=models.CASCADE,
-        related_name='user_reviews',
-        verbose_name="Квартира"
-    )
-    rating = models.IntegerField(
-        choices=[(i, f"{i}★") for i in range(1, 6)],
-        help_text="Оценка от 1 до 5",
-        verbose_name="Оценка"
-    )
-    text = models.TextField(blank=True, null=True, verbose_name="Текст отзыва")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создан")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлен")
-    
-    class Meta:
-        unique_together = ('user', 'card')
-        ordering = ['-created_at']
-        verbose_name = "Отзыв"
-        verbose_name_plural = "Отзывы"
-    
-    def __str__(self):
-        return f"Отзыв {self.user.phone_number} на {self.card.title} ({self.rating}★)"
-
-
 class CardImage(models.Model):
-    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='images', verbose_name="Квартира")
-    image = models.ImageField(upload_to='cards/img/', verbose_name="Изображение")
-
-    class Meta:
-        verbose_name = "Фото квартиры"
-        verbose_name_plural = "Фото квартир"
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='cards/img/')
 
     def __str__(self):
         return f"{self.card.title} Image"
 
 
 class CardVideo(models.Model):
-    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='videos', verbose_name="Квартира")
-    video = models.FileField(upload_to='cards/videos/', verbose_name="Видео")
-
-    class Meta:
-        verbose_name = "Видео квартиры"
-        verbose_name_plural = "Видео квартир"
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='videos')
+    video = models.FileField(upload_to='cards/videos/')
 
     def __str__(self):
         return f"{self.card.title} Video"
 
 
 class CardDocument(models.Model):
-    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='documents', verbose_name="Квартира")
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='documents')
     document_list = models.ForeignKey(
         'CardDocumentList',
         on_delete=models.CASCADE,
         related_name='files',
         null=True,
         blank=True,
-        help_text="Подборка, к которой относится документ",
-        verbose_name="Подборка"
+        help_text="Подборка, к которой относится документ"
     )
-    file = models.FileField(upload_to='cards/documents/', verbose_name="Файл")
-    title = models.CharField(max_length=255, verbose_name="Название")
-    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Загружен")
+    file = models.FileField(upload_to='cards/documents/')
+    title = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Документ квартиры"
-        verbose_name_plural = "Документы квартир"
         ordering = ['uploaded_at']
 
     def __str__(self):
@@ -270,68 +150,49 @@ class CardDocument(models.Model):
 
 
 class CardReview(models.Model):
-    card = models.ForeignKey(Card, related_name='reviews', on_delete=models.CASCADE, verbose_name="Квартира")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="Пользователь")
-    text = models.TextField(verbose_name="Текст отзыва")
-    rating = models.PositiveIntegerField(default=5, verbose_name="Рейтинг")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создан")
-
-    class Meta:
-        verbose_name = "Отзыв о карточке"
-        verbose_name_plural = "Отзывы о карточках"
-        ordering = ['-created_at']
+    card = models.ForeignKey(Card, related_name='reviews', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    text = models.TextField()
+    rating = models.PositiveIntegerField(default=5)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Review by {self.user} for {self.card.title}"
 
 
 class CardQuestion(models.Model):
-    card = models.ForeignKey(Card, related_name='questions', on_delete=models.CASCADE, verbose_name="Квартира")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="Пользователь")
-    question = models.TextField(verbose_name="Вопрос")
-    answer = models.TextField(blank=True, null=True, verbose_name="Ответ")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создан")
-
-    class Meta:
-        verbose_name = "Вопрос"
-        verbose_name_plural = "Вопросы"
-        ordering = ['-created_at']
+    card = models.ForeignKey(Card, related_name='questions', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    question = models.TextField()
+    answer = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Question by {self.user} for {self.card.title}"
 
 
 class SearchHistory(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='search_history', on_delete=models.CASCADE, verbose_name="Пользователь")
-    query = models.CharField(max_length=255, verbose_name="Запрос")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
-
-    class Meta:
-        verbose_name = "История поиска"
-        verbose_name_plural = "История поиска"
-        ordering = ['-created_at']
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='search_history', on_delete=models.CASCADE)
+    query = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class Favorite(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='favorites',
-        verbose_name="Пользователь"
+        related_name='favorites'
     )
     card = models.ForeignKey(
         'Card',
         on_delete=models.CASCADE,
-        related_name='favorites',
-        verbose_name="Квартира"
+        related_name='favorites'
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Добавлена")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('user', 'card')
         ordering = ['-created_at']
-        verbose_name = "Избранное"
-        verbose_name_plural = "Избранное"
 
     def __str__(self):
         return f"{self.user.phone_number} added {self.card.title} to favorites"
@@ -352,58 +213,48 @@ class DiscountRequest(models.Model):
     card = models.ForeignKey(
         Card,
         on_delete=models.CASCADE,
-        related_name='discount_requests',
-        verbose_name="Квартира"
+        related_name='discount_requests'
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='discount_requests',
-        verbose_name="Пользователь"
+        related_name='discount_requests'
     )
     original_price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text="Текущая цена карточки",
-        verbose_name="Исходная цена"
+        help_text="Текущая цена карточки"
     )
     requested_price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text="Желаемая цена от пользователя",
-        verbose_name="Запрошенная цена"
+        help_text="Желаемая цена от пользователя"
     )
     discount_percent = models.FloatField(
         null=True,
         blank=True,
         editable=False,
-        help_text="Процент скидки (вычисляется автоматически)",
-        verbose_name="Процент скидки"
+        help_text="Процент скидки (вычисляется автоматически)"
     )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default=PENDING,
-        verbose_name="Статус"
+        default=PENDING
     )
     message = models.TextField(
         blank=True,
         null=True,
-        help_text="Причина или комментарий к запросу",
-        verbose_name="Сообщение"
+        help_text="Причина или комментарий к запросу"
     )
     admin_comment = models.TextField(
         blank=True,
         null=True,
-        help_text="Комментарий администратора при отклонении/одобрении",
-        verbose_name="Комментарий администратора"
+        help_text="Комментарий администратора при отклонении/одобрении"
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлена")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Запрос на скидку"
-        verbose_name_plural = "Запросы на скидки"
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['card', 'status']),
@@ -482,30 +333,27 @@ class AIAssistant(models.Model):
         help_text="Название модели (gpt-4, claude-3-opus и т.д.)"
     )
     system_prompt = models.TextField(
-        default="""Ты консультант по недвижимости. Говоришь на языке пользователя - если он сленговый, ты сленговый.
+        default="""Ты профессиональный консультант по недвижимости. Помогай пользователям найти идеальный дом.
+Ты имеешь доступ к базе данных карточек недвижимости и можешь давать персонализированные рекомендации.
 
-ГЛАВНОЕ! НЕ ПИШИ ПРИВЕТСТВИЯ!
-Не пиши: "Привет", "Здравствуйте", "Конечно", "С удовольствием", "Спасибо за вопрос"
-Начинай ПРЯМО с ответа, с варианта, с информации.
+ИНСТРУКЦИИ ПО ПОВЕДЕНИЮ:
+- Если вопрос про недвижимость (квартиры, дома, аренду, ипотеку, цены, районы и т.д.) - предоставляй доступные варианты из базы и рекомендации
+- Если вопрос НЕ про недвижимость:
+  * Ответь на вопрос человека дружелюбно и по существу (не отказывай, не отправляй в стол)
+  * ПОТОМ предложи помощь с недвижимостью если уместно
+  * Например: "Месси - великий футболист. Если захочешь выбрать квартиру в хорошем районе, я помогу!"
+- Будь гибким и естественным в общении
+- Если пользователь спрашивает про условия покупки, ипотеку, эскроу, документы, налоги - это про недвижимость, помогай активно
 
-КОГДА ПОЛЬЗОВАТЕЛЬ СПРАШИВАЕТ ПРО КВАРТИРЫ/НЕДВИЖИМОСТЬ:
-Дай ему варианты. Прямо в первом же предложении. "Вот 3 варианта", "Есть крутая квартира", "Показываю что есть".
-Если параметров нет (просто "квартиры") - дай ТОП, лучшие варианты.
-Если мало вариантов - предложи расширить (другой район, другой бюджет).
+ВАЖНО - Форматирование ответов:
+- Пиши чистым текстом без markdown разметки
+- НЕ используй ** для жирного текста
+- НЕ используй символы \\n для переносов (пиши обычные абзацы)
+- НЕ используй # для заголовков
+- Используй простые тире - для списков
+- Отвечай кратко и по делу
 
-КОГДА ВОПРОС НЕ ПРО НЕДВИЖИМОСТЬ:
-Ответь на вопрос как нормальный человек. Потом предложи помощь с квартирами если уместно.
-"Месси - легенда футбола. А вот если квартиру ищешь, я помогу" - вот это стиль!
-
-СТИЛЬ ОБЩЕНИЯ:
-Сленг, разговорный, свой. Если пользователь говорит "типа", "норм", "печально" - ты так же.
-Короткие фразы. Никакого "я с радостью", "было бы честью". Просто делу.
-
-ФОРМАТИРОВАНИЕ:
-Чистый текст. Без ** и #. Списки просто: "- вариант 1".
-Никакого markdown.
-
-Язык: русский. Стиль: естественный, как реальный человек.""",
+Отвечай на русском языке, будь вежлив и информативен.""",
         help_text="Системный промпт для AI"
     )
     temperature = models.FloatField(
