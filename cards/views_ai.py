@@ -12,9 +12,11 @@ from .serializers import DiscountRequestSerializer, RecommendationSerializer, Ch
 
 # СКИДКИ
 @extend_schema(
-    summary="Создать запрос на скидку"
+    summary="Создать запрос на скидку",
+    description="Пользователь предлагает цену за понравившуюся квартиру. Уведомляет владельца и пользователя."
 )
 class DiscountRequestCreateView(generics.CreateAPIView):
+    """Создание запроса на скидку от пользователя к владельцу квартиры"""
     serializer_class = DiscountRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -28,9 +30,11 @@ class DiscountRequestCreateView(generics.CreateAPIView):
 
 
 @extend_schema(
-    summary="Список запросов на скидки пользователя"
+    summary="Список запросов на скидки пользователя",
+    description="Возвращает все скидки, которые запросил текущий пользователь (статусы: на рассмотрении, одобрено, отклонено)"
 )
 class UserDiscountRequestsView(generics.ListAPIView):
+    """История запросов на скидки для текущего пользователя"""
     serializer_class = DiscountRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -39,9 +43,11 @@ class UserDiscountRequestsView(generics.ListAPIView):
 
 
 @extend_schema(
-    summary="Получить рекомендации для текущего пользователя"
+    summary="Получить рекомендации для текущего пользователя",
+    description="Рекомендации на основе истории просмотров: если нет истории - топ по рейтингу, если есть - похожие по городу или цене (±30%)"
 )
 class GetRecommendationsView(generics.ListAPIView):
+    """Персонализированные рекомендации квартир на основе истории просмотров"""
     serializer_class = CardSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -74,9 +80,11 @@ class GetRecommendationsView(generics.ListAPIView):
 
 # AI АССИСТЕНТ
 @extend_schema(
-    summary="Chat с AI ассистентом"
+    summary="Chat с AI ассистентом",
+    description="Отправить вопрос AI ассистенту: поиск квартир, информация о рынке, ответы на вопросы. Ответ содержит найденные квартиры и текст AI."
 )
 class AIChatView(generics.GenericAPIView):
+    """Чат с AI для поиска и консультаций по недвижимости"""
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -125,9 +133,11 @@ class AIChatView(generics.GenericAPIView):
 
 
 @extend_schema(
-    summary="История чатов пользователя"
+    summary="История чатов пользователя (последние 10)",
+    description="Возвращает последние 10 сообщений из чата с AI ассистентом с найденными квартирами и ответами AI"
 )
 class ChatHistoryView(generics.ListAPIView):
+    """История чатов с AI - последние 10 сообщений пользователя"""
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -137,9 +147,11 @@ class ChatHistoryView(generics.ListAPIView):
 
 
 @extend_schema(
-    summary="Оценить полезность ответа AI"
+    summary="Оценить полезность ответа AI",
+    description="Отметить полезен ли ответ AI (is_helpful: true/false) для улучшения качества ответов"
 )
 class RateAIResponseView(generics.UpdateAPIView):
+    """Оценка качества ответов AI ассистента для обучения"""
     queryset = ChatMessage.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = ChatMessageSerializer

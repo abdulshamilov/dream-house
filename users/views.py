@@ -188,13 +188,15 @@ def get_referral_link(request):
 
 
 class ChangePasswordView(APIView):
+    """Смена пароля аккаунта. Требует проверку старого пароля."""
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=ChangePasswordSerializer,
         responses={200: {"detail": "Password changed successfully"}},
         tags=["User"],
-        summary="Смена пароля"
+        summary="Смена пароля",
+        description="Изменить пароль аккаунта. Требует старый пароль для подтверждения."
     )
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
@@ -223,13 +225,15 @@ class ChangePasswordView(APIView):
 
 
 class UpdateProfileView(APIView):
+    """Обновление профиля: имя, фото профиля"""
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=UpdateProfileSerializer,
         responses={200: UserSerializer},
         tags=["User"],
-        summary="Обновить профиль (имя, фото)"
+        summary="Обновить профиль (имя, фото)",
+        description="Изменить имя пользователя или загрузить новое фото профиля"
     )
     def put(self, request):
         serializer = UpdateProfileSerializer(
@@ -248,13 +252,15 @@ class UpdateProfileView(APIView):
 
 
 class DeleteAccountView(APIView):
+    """Удаление аккаунта и всех связанных данных (необратимо). Требует пароль для подтверждения."""
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=DeleteAccountSerializer,
         responses={204: None},
         tags=["User"],
-        summary="Удалить аккаунт (необратимо)"
+        summary="Удалить аккаунт (необратимо)",
+        description="Безвозвратно удалить аккаунт, все квартиры, отзывы, историю чатов. Требует подтверждение пароля."
     )
     def delete(self, request):
         serializer = DeleteAccountSerializer(data=request.data)

@@ -56,6 +56,29 @@ class CardAdmin(admin.ModelAdmin):
     search_fields = ['title', 'address', 'description']
     list_filter = ['city', 'house_type', 'category', 'floors_total', 'elevator', 'parking']
     inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
+    readonly_fields = ['rating', 'rating_count', 'created_at', 'list_curations']
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('title', 'owner', 'developer', 'description', 'created_at')
+        }),
+        ('Цена и количество', {
+            'fields': ('price', 'rooms', 'area')
+        }),
+        ('Расположение', {
+            'fields': ('address', 'city', 'latitude', 'longitude')
+        }),
+        ('Тип и характеристики', {
+            'fields': ('house_type', 'building_material', 'category', 'ceiling_height')
+        }),
+        ('Здание', {
+            'fields': ('floors_total', 'elevator', 'parking', 'balcony')
+        }),
+        ('Рейтинг и рекомендации', {
+            'fields': ('rating', 'rating_count', 'list_curations'),
+            'classes': ('collapse',)
+        }),
+    )
     
     def save_model(self, request, obj, form, change):
         """Сохранить карточку и создать уведомления подписчикам"""
@@ -72,9 +95,13 @@ class CardAdmin(admin.ModelAdmin):
             for sub in subs:
                 Notification.objects.create(
                     user=sub.user,
-                    title="Новая квартира от вашего девелопера",
+                    title="✨ Новая квартира от вашего девелопера",
                     message=f"{obj.title} — {obj.price}₽, {obj.rooms} комн."
                 )
+
+    def has_delete_permission(self, request, obj=None):
+        # Только суперпользователь может удалять карточки
+        return request.user.is_superuser
 
 
 # 🔹 Отдельная регистрация остальных моделей
@@ -119,16 +146,16 @@ class CallRequestAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at']
     
     fieldsets = (
-        ('Контактная информация', {
+        ('👤 Контактная информация', {
             'fields': ('name', 'phone_number')
         }),
-        ('Квартира', {
+        ('🏠 Квартира', {
             'fields': ('card',)
         }),
-        ('Время звонка', {
+        ('⏰ Время звонка', {
             'fields': ('preferred_time',)
         }),
-        ('Статус', {
+        ('✔️ Статус', {
             'fields': ('is_processed', 'created_at')
         }),
     )
@@ -147,13 +174,13 @@ class DiscountRequestAdmin(admin.ModelAdmin):
     readonly_fields = ['discount_percent', 'created_at', 'updated_at']
     
     fieldsets = (
-        ('Информация о запросе', {
+        ('📋 Информация о запросе', {
             'fields': ('card', 'user', 'message', 'created_at', 'updated_at')
         }),
-        ('Цены', {
+        ('💰 Цены', {
             'fields': ('original_price', 'requested_price', 'discount_percent')
         }),
-        ('Решение администратора', {
+        ('⚖️ Решение администратора', {
             'fields': ('status', 'admin_comment')
         }),
     )
@@ -179,14 +206,14 @@ class DiscountRequestAdmin(admin.ModelAdmin):
             if obj.card.owner:
                 Notification.objects.create(
                     user=obj.card.owner,
-                    title="Запрос на скидку",
+                    title="💰 Запрос на скидку",
                     message=f"Пользователь предложил {obj.requested_price}₽ за {obj.card.title} (было {obj.original_price}₽)"
                 )
 
             # Уведомление для пользователя
             Notification.objects.create(
                 user=obj.user,
-                title="Ваш запрос на скидку отправлен",
+                title="✅ Ваш запрос на скидку отправлен",
                 message=f"Запрос на скидку отправлен владельцу {obj.card.title}. Статус: На рассмотрении"
             )
 
@@ -242,31 +269,33 @@ class ChatMessageAdmin(admin.ModelAdmin):
     list_display = ['user', 'created_at', 'is_helpful', 'tokens_used']
     list_filter = ['is_helpful', 'created_at']
     search_fields = ['user__phone_number', 'message', 'response']
-    readonly_fields = ['created_at', 'referenced_cards', 'tokens_used']
+    readonly_fields = ['created_at', 'referenced_cards', 'tokens_used', 'message', 'response']
 
     fieldsets = (
-        ('Пользователь', {
+        ('👤 Пользователь', {
             'fields': ('user', 'created_at')
         }),
-        ('Сообщение', {
+        ('💬 Сообщение', {
             'fields': ('message',)
         }),
-        ('Ответ AI', {
+        ('🤖 Ответ AI', {
             'fields': ('response', 'tokens_used')
         }),
-        ('Связанные карточки', {
+        ('🔗 Связанные карточки', {
             'fields': ('referenced_cards',)
         }),
-        ('Обратная связь', {
+        ('👍 Обратная связь', {
             'fields': ('is_helpful',)
         }),
     )
 
-    def get_readonly_fields(self, request, obj=None):
-        if obj is None:
-            return self.readonly_fields
-        # История чатов только для чтения
-        return ['user', 'message', 'response', 'referenced_cards', 'tokens_used', 'created_at']
+    def has_add_permission(self, request):
+        # Чаты создаются автоматически через API
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Только суперпользователь может удалять
+        return request.user.is_superuser
 
 
 # 🔑 НОВАЯ: Админка для подборок документов
@@ -278,10 +307,10 @@ class CardDocumentListAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
-        ('Основная информация', {
+        ('📋 Основная информация', {
             'fields': ('card', 'name')
         }),
-        ('Метаданные', {
+        ('⏰ Метаданные', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
@@ -297,10 +326,10 @@ class ViewHistoryAdmin(admin.ModelAdmin):
     readonly_fields = ['viewed_at', 'user', 'card']
     
     fieldsets = (
-        ('Просмотр', {
+        ('👁️ Просмотр', {
             'fields': ('user', 'card', 'viewed_at')
         }),
-        ('Информация о просмотре', {
+        ('⏱️ Информация о просмотре', {
             'fields': ('duration_seconds',),
             'classes': ('collapse',)
         }),
@@ -309,6 +338,10 @@ class ViewHistoryAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Просмотры создаются автоматически через API
         return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Только суперпользователь может удалять
+        return request.user.is_superuser
 
 
 # 🔑 НОВАЯ: Админка для отзывов
@@ -320,10 +353,10 @@ class ReviewAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
-        ('Отзыв', {
+        ('⭐ Отзыв', {
             'fields': ('user', 'card', 'rating', 'text')
         }),
-        ('Дата и время', {
+        ('⏰ Дата и время', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
@@ -332,3 +365,9 @@ class ReviewAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Отзывы создаются через API
         return True
+    
+    def has_delete_permission(self, request, obj=None):
+        # Только суперпользователь или автор могут удалять
+        if obj:
+            return request.user.is_superuser or obj.user == request.user
+        return request.user.is_superuser

@@ -165,13 +165,19 @@ class CallRequest(models.Model):
     card = models.ForeignKey(
         Card,
         on_delete=models.CASCADE,
-        related_name='call_requests'
+        related_name='call_requests',
+        verbose_name="Квартира"
     )
-    name = models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=20)
-    preferred_time = models.CharField(max_length=100, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_processed = models.BooleanField(default=False)
+    name = models.CharField(max_length=100, verbose_name="Имя")
+    phone_number = models.CharField(max_length=20, verbose_name="Телефон")
+    preferred_time = models.CharField(max_length=100, blank=True, verbose_name="Предпочитаемое время")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создана")
+    is_processed = models.BooleanField(default=False, verbose_name="Обработана")
+
+    class Meta:
+        verbose_name = "Заявка на звонок"
+        verbose_name_plural = "Заявки на звонок"
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"Заявка от {self.name} ({self.phone_number})"
@@ -182,24 +188,29 @@ class Review(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='user_reviews'
+        related_name='user_reviews',
+        verbose_name="Пользователь"
     )
     card = models.ForeignKey(
         Card,
         on_delete=models.CASCADE,
-        related_name='user_reviews'
+        related_name='user_reviews',
+        verbose_name="Квартира"
     )
     rating = models.IntegerField(
         choices=[(i, f"{i}★") for i in range(1, 6)],
-        help_text="Оценка от 1 до 5"
+        help_text="Оценка от 1 до 5",
+        verbose_name="Оценка"
     )
-    text = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    text = models.TextField(blank=True, null=True, verbose_name="Текст отзыва")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создан")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Обновлен")
     
     class Meta:
         unique_together = ('user', 'card')
         ordering = ['-created_at']
+        verbose_name = "Отзыв"
+        verbose_name_plural = "Отзывы"
     
     def __str__(self):
         return f"Отзыв {self.user.phone_number} на {self.card.title} ({self.rating}★)"

@@ -372,8 +372,12 @@ class CardDocumentListCreateView(generics.CreateAPIView):
 
 
 # 🔑 НОВОЕ: Отзывы на карточки
+@extend_schema(
+    summary="Список отзывов на карточку и создание отзыва",
+    description="GET: получить все отзывы на квартиру от других пользователей. POST: оставить новый отзыв с оценкой 1-5 и текстом (автоматически обновляет рейтинг)"
+)
 class ReviewListCreateView(generics.ListCreateAPIView):
-    """Список отзывов и создание нового отзыва"""
+    """Список отзывов и создание нового отзыва. Автоматически обновляет рейтинг карточки."""
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
@@ -395,8 +399,12 @@ class ReviewListCreateView(generics.ListCreateAPIView):
         card.update_rating()
 
 
+@extend_schema(
+    summary="Получить/Обновить/Удалить отзыв",
+    description="GET: получить полный отзыв. PUT/PATCH: обновить отзыв (только автор). DELETE: удалить отзыв (только автор). Автоматически обновляет рейтинг."
+)
 class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Получить, обновить или удалить отзыв"""
+    """Получить, обновить или удалить отзыв. Только автор может редактировать/удалять."""
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -429,11 +437,11 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # 🔑 НОВОЕ: Подборка для карточки
 @extend_schema(
-    summary="Получить подборку похожих карточек",
-    responses=CardSerializer(many=True)
+    summary="Получить подборку похожих карточек с полной информацией",
+    description="Возвращает JSON-список похожих квартир с информацией: id, address, price, rooms, city, rating. Автоматически генерирует если не существует."
 )
 class CardCurationsView(generics.RetrieveAPIView):
-    """Получить подборку похожих карточек"""
+    """Подборка похожих квартир (curations) - список с полной информацией"""
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
