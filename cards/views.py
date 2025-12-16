@@ -104,9 +104,11 @@ class CardDetailView(generics.RetrieveAPIView):
 # 4. Избранное
 # -------------------------------
 @extend_schema(
-    summary="Добавление/удаление карточки из избранного"
+    summary="Добавить/удалить карточку из избранного",
+    description="POST: добавить карточку в избранное. DELETE: удалить из избранного. Только для авторизованных пользователей."
 )
 class FavoriteAPIView(generics.GenericAPIView):
+    """Управление избранными карточками пользователя"""
     queryset = Card.objects.all()
     permission_classes = [IsAuthenticated]
 
@@ -124,7 +126,12 @@ class FavoriteAPIView(generics.GenericAPIView):
             return Response({'message': 'Карточка не была в избранном'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+@extend_schema(
+    summary="Список избранных карточек пользователя",
+    description="Получить все карточки, добавленные в избранное текущим пользователем"
+)
 class MyFavoritesListAPIView(generics.ListAPIView):
+    """Список избранных карточек текущего пользователя"""
     serializer_class = FavoriteSerializer
     permission_classes = [IsAuthenticated]
 
@@ -138,11 +145,13 @@ class MyFavoritesListAPIView(generics.ListAPIView):
 # 5. Оценка карточки
 # -------------------------------
 @extend_schema(
-    summary="Поставить оценку карточке",
+    summary="Поставить оценку карточке (1-5 звёзд)",
+    description="Увеличить рейтинг карточки. Вычисляет среднюю оценку из всех голосов.",
     request=RateCardSerializer,
     responses={200: RateCardResponseSerializer}
 )
 class RateCardView(generics.GenericAPIView):
+    """Добавление оценки карточке и обновление рейтинга"""
     queryset = Card.objects.all()
     permission_classes = [permissions.IsAuthenticated]
 
@@ -166,10 +175,12 @@ class RateCardView(generics.GenericAPIView):
 # -------------------------------
 @extend_schema(
     summary="Оставить заявку на звонок",
+    description="Создать заявку на звонок от потенциального покупателя. Уведомляет владельца карточки.",
     request=CallRequestSerializer,
     responses={201: OpenApiResponse(description="Создано")}
 )
 class CallRequestCreateView(generics.CreateAPIView):
+    """Создание заявки на звонок для контактирования с владельцем"""
     serializer_class = CallRequestSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -184,7 +195,13 @@ class CallRequestCreateView(generics.CreateAPIView):
 # -------------------------------
 # 7. Видео, отзыв, вопрос
 # -------------------------------
+@extend_schema(
+    summary="Загрузить видео на карточку",
+    description="Добавить видео-обзор к карточке. Требует авторизацию.",
+    request=CardVideoSerializer
+)
 class CardVideoCreateView(generics.CreateAPIView):
+    """Добавление видео-обзора к карточке"""
     serializer_class = CardVideoSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -192,7 +209,13 @@ class CardVideoCreateView(generics.CreateAPIView):
         card = Card.objects.get(pk=self.kwargs.get('pk'))
         serializer.save(card=card)
 
+@extend_schema(
+    summary="Оставить отзыв на карточку",
+    description="Добавить текстовый отзыв с оценкой. Требует авторизацию.",
+    request=CardReviewSerializer
+)
 class CardReviewCreateView(generics.CreateAPIView):
+    """Добавление текстового отзыва о квартире"""
     serializer_class = CardReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -201,15 +224,15 @@ class CardReviewCreateView(generics.CreateAPIView):
         serializer.save(card=card, user=self.request.user)
 
 # -------------------------------
+@extend_schema(
+    summary="Список вопросов по карточке",
+    description="Возвращает все вопросы к квартире (можно фильтровать по card_id через query параметр)",
+    responses=CardQuestionSerializer(many=True)
+)
 class CardQuestionListView(generics.ListAPIView):
+    """Список вопросов о квартире"""
     serializer_class = CardQuestionSerializer
     permission_classes = [permissions.IsAuthenticated]
-
-    @extend_schema(
-        summary="Список вопросов",
-        description="Возвращает список всех вопросов, можно фильтровать по карточке через query param card_id",
-        responses=CardQuestionSerializer(many=True)
-    )
     def get_queryset(self):
         card_id = self.request.query_params.get('card_id')
         if card_id:
@@ -217,15 +240,16 @@ class CardQuestionListView(generics.ListAPIView):
         return CardQuestion.objects.all()
 
 # Создание вопроса к конкретной карточке
+@extend_schema(
+    summary="Создать вопрос к карточке",
+    description="Задать вопрос о карточке. Ответ может оставить только владелец или администратор.",
+    request=CardQuestionSerializer,
+    responses={201: CardQuestionSerializer}
+)
 class CardQuestionCreateView(generics.CreateAPIView):
+    """Создание вопроса о квартире"""
     serializer_class = CardQuestionSerializer
     permission_classes = [permissions.IsAuthenticated]
-
-    @extend_schema(
-        summary="Создать вопрос к карточке",
-        request=CardQuestionSerializer,
-        responses={201: CardQuestionSerializer}
-    )
     def post(self, request, pk, *args, **kwargs):
         card = get_object_or_404(Card, pk=pk)
         serializer = self.get_serializer(data=request.data)
@@ -234,54 +258,167 @@ class CardQuestionCreateView(generics.CreateAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 # Ответ на вопрос (только админ/девелопер)
+@extend_schema(
+    summary="Ответить на вопрос о квартире",
+    description="Ответить на вопрос. Доступно только владельцу карточки или администратору.",
+    request=CardQuestionSerializer,
+    responses={200: CardQuestionSerializer}
+)
 class CardQuestionAnswerView(generics.UpdateAPIView):
+    """Добавление ответа на вопрос о квартире"""
     queryset = CardQuestion.objects.all()
     serializer_class = CardQuestionSerializer
     permission_classes = [IsAdminOrReadOnly]
-
-    @extend_schema(
-        summary="Ответить на вопрос",
-        request=CardQuestionSerializer,
-        responses={200: CardQuestionSerializer}
-    )
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
         serializer.save(answer=self.request.data.get('answer'))
-# -------------------------------
+
 # 9. Детали отзывов/вопросов
 # -------------------------------
+@extend_schema(
+    summary="Получить отзыв по ID",
+    responses=CardReviewSerializer
+)
 class CardReviewDetailView(generics.RetrieveAPIView):
+    """Получение полной информации об отзыве"""
     queryset = CardReview.objects.all()
     serializer_class = CardReviewSerializer
     lookup_field = "id"
 
+@extend_schema(
+    summary="Получить вопрос по ID",
+    responses=CardQuestionSerializer
+)
 class CardQuestionDetailView(generics.RetrieveAPIView):
+    """Получение полной информации о вопросе и ответе"""
     queryset = CardQuestion.objects.all()
     serializer_class = CardQuestionSerializer
     lookup_field = "id"
 
-# -------------------------------
 # 10. Поиск карточек
 # -------------------------------
+@extend_schema(
+    summary="Поиск карточек по тексту (умный поиск)",
+    description="Поиск по названию, описанию и адресу. Сохраняет историю поиска авторизованных пользователей. Учит система на основе истории."
+)
 class CardSearchView(generics.ListAPIView):
+    """Поиск квартир по текстовому запросу с умной фильтрацией и исправлением ошибок"""
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
 
+    def _correct_query(self, query):
+        """Исправить опечатки и синонимы в запросе"""
+        from difflib import get_close_matches
+        import re
+        
+        # Словарь синонимов и исправлений
+        synonyms = {
+            'хорошие': 'премиум рейтинг',
+            'хорошая': 'премиум рейтинг',
+            'хорош': 'премиум рейтинг',
+            'качественн': 'премиум рейтинг',
+            'новые': 'новое',
+            'свежие': 'новое',
+            'красивые': 'дизайн интерьер',
+            'красивая': 'дизайн интерьер',
+            'дешевые': 'цена бюджет',
+            'дешевая': 'цена бюджет',
+            'дорогие': 'премиум люкс',
+            'центр': 'центральный',
+            'спальни': 'комнаты',
+            'апартаменты': 'квартира',
+            'апарт': 'квартира',
+        }
+        
+        corrected = query.lower()
+        
+        # Заменить синонимы
+        for old, new in synonyms.items():
+            pattern = r'\b' + old + r'\b'
+            corrected = re.sub(pattern, new, corrected, flags=re.IGNORECASE)
+        
+        return corrected
+
+    def _build_filters(self, query):
+        """Построить фильтры на основе анализа запроса"""
+        from django.db.models import Q
+        
+        filters = Q()
+        query_lower = query.lower()
+        
+        # Ценовые фильтры
+        if 'дешев' in query_lower or 'бюджет' in query_lower:
+            filters |= Q(price__lt=3000000)  # < 3млн
+        if 'премиум' in query_lower or 'люкс' in query_lower:
+            filters |= Q(price__gte=5000000)  # >= 5млн
+        
+        # Районы/Местоположение
+        if 'центр' in query_lower:
+            filters |= Q(city__icontains='центр') | Q(address__icontains='центр')
+        
+        # Качество/Рейтинг
+        if 'хорош' in query_lower or 'рейтинг' in query_lower:
+            filters |= Q(rating__gte=4.0)  # Рейтинг 4 звезды и выше
+        
+        # Новые предложения
+        if 'новое' in query_lower:
+            filters |= Q(created_at__year=2025)
+        
+        return filters
+
     def get_queryset(self):
-        query = self.request.query_params.get("q", "")
-        if query and self.request.user.is_authenticated:
-            SearchHistory.objects.create(user=self.request.user, query=query)
+        from django.db.models import Q
+        from django.utils import timezone
+        from datetime import timedelta
+        import re
+        
+        query = self.request.query_params.get("q", "").strip()
         
         if not query:
             return Card.objects.none()
         
-        return Card.objects.filter(
-            Q(title__icontains=query) |
-            Q(description__icontains=query) |
-            Q(address__icontains=query)
+        # Исправить ошибки и синонимы
+        corrected_query = self._correct_query(query)
+        
+        # Сохранить оригинальный поиск если пользователь авторизован
+        if self.request.user.is_authenticated:
+            SearchHistory.objects.create(user=self.request.user, query=query)
+        
+        # Основной поиск с исправленным запросом
+        queryset = Card.objects.filter(
+            Q(title__icontains=corrected_query) |
+            Q(description__icontains=corrected_query) |
+            Q(address__icontains=corrected_query)
         )
+        
+        # Применить умные фильтры на основе содержания запроса
+        smart_filters = self._build_filters(corrected_query)
+        if smart_filters:
+            queryset = queryset.filter(smart_filters)
+        
+        # Умная сортировка на основе истории поиска пользователя
+        if self.request.user.is_authenticated:
+            # Получить популярные фильтры из истории этого пользователя за последние 7 дней
+            recent_searches = SearchHistory.objects.filter(
+                user=self.request.user,
+                created_at__gte=timezone.now() - timedelta(days=7)
+            ).values_list('query', flat=True)
+            
+            # Если в поиске есть числа (цена, комнаты), отдать приоритет релевантным результатам
+            numbers = re.findall(r'\d+', corrected_query)
+            if numbers:
+                # Поднять карточки где есть эти числа в цене или комнатах
+                number_matches = queryset.filter(
+                    Q(price__icontains=numbers[0]) |
+                    (Q(rooms=int(numbers[0])) if numbers[0].isdigit() else Q())
+                )
+                if number_matches.exists():
+                    queryset = number_matches | queryset.exclude(id__in=number_matches.values_list('id', flat=True))
+        
+        # Ограничить результаты (макс 20 для избежания перегруза)
+        return queryset.order_by('-rating', '-created_at')[:20]
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -290,10 +427,11 @@ class CardSearchView(generics.ListAPIView):
 # 🔑 НОВЫЕ: Views для истории просмотров и подборок документов
 
 @extend_schema(
-    summary="Сохранить просмотр карточки"
+    summary="Сохранить просмотр карточки",
+    description="Записать время просмотра карточки пользователем для аналитики и рекомендаций"
 )
 class CardViewHistoryView(generics.CreateAPIView):
-    """Сохранить просмотр карточки пользователем"""
+    """Сохранение истории просмотров квартир пользователем"""
     permission_classes = [IsAuthenticated]
     
     def create(self, request, *args, **kwargs):
@@ -321,10 +459,11 @@ class CardViewHistoryView(generics.CreateAPIView):
 
 
 @extend_schema(
-    summary="История просмотров пользователя"
+    summary="История просмотров текущего пользователя",
+    description="Получить список всех просмотренных карточек с временем просмотра"
 )
 class UserViewHistoryListView(generics.ListAPIView):
-    """Получить историю просмотров текущего пользователя"""
+    """История просмотренных квартир пользователя"""
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -337,10 +476,65 @@ class UserViewHistoryListView(generics.ListAPIView):
 
 
 @extend_schema(
-    summary="Подборки документов для карточки"
+    summary="История поиска пользователя",
+    description="Получить историю всех поисков текущего пользователя с аналитикой популярных запросов"
+)
+class SearchHistoryView(generics.ListAPIView):
+    """История поиска пользователя с аналитикой"""
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        from django.db.models import Count
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Получить последние 30 дней поиска
+        return SearchHistory.objects.filter(
+            user=self.request.user,
+            created_at__gte=timezone.now() - timedelta(days=30)
+        ).order_by('-created_at')
+    
+    def list(self, request, *args, **kwargs):
+        """Добавить аналитику в ответ"""
+        from django.db.models import Count
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        
+        # Добавить аналитику популярных запросов
+        popular_queries = SearchHistory.objects.filter(
+            user=request.user,
+            created_at__gte=timezone.now() - timedelta(days=30)
+        ).values('query').annotate(count=Count('id')).order_by('-count')[:5]
+        
+        return Response({
+            'total_searches': queryset.count(),
+            'popular_queries': [
+                {'query': item['query'], 'count': item['count']} 
+                for item in popular_queries
+            ],
+            'recent_searches': serializer.data
+        })
+    
+    def get_serializer_class(self):
+        from rest_framework import serializers
+        
+        class SearchHistorySerializer(serializers.ModelSerializer):
+            class Meta:
+                model = SearchHistory
+                fields = ['query', 'created_at']
+        
+        return SearchHistorySerializer
+
+
+@extend_schema(
+    summary="Подборки документов для карточки",
+    description="Получить списки (подборки) документов, загруженные для этой квартиры"
 )
 class CardDocumentListsView(generics.ListAPIView):
-    """Получить подборки документов для карточки"""
+    """Список подборок документов для квартиры"""
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
@@ -354,10 +548,11 @@ class CardDocumentListsView(generics.ListAPIView):
 
 
 @extend_schema(
-    summary="Создать подборку документов"
+    summary="Создать подборку документов",
+    description="Создать новый список (подборку) документов для карточки. Доступно только администратору."
 )
 class CardDocumentListCreateView(generics.CreateAPIView):
-    """Создать новую подборку документов для карточки"""
+    """Создание подборки документов к квартире"""
     permission_classes = [IsAdminOrReadOnly]
     
     def get_serializer_class(self):

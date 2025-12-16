@@ -107,33 +107,76 @@ class CardAdmin(admin.ModelAdmin):
 # 🔹 Отдельная регистрация остальных моделей
 @admin.register(CardImage)
 class CardImageAdmin(admin.ModelAdmin):
-    list_display = ['card', 'image']
+    list_display = ['card', 'image', 'id']
+    search_fields = ['card__title']
+    list_filter = ['card__city']
+    readonly_fields = ['id']
 
 @admin.register(CardVideo)
 class CardVideoAdmin(admin.ModelAdmin):
-    list_display = ['card', 'video']
+    list_display = ['card', 'video', 'id']
+    search_fields = ['card__title']
+    list_filter = ['card__city']
+    readonly_fields = ['id']
 
 @admin.register(CardDocument)
 class CardDocumentAdmin(admin.ModelAdmin):
-    list_display = ['card', 'title', 'uploaded_at']
+    list_display = ['card', 'title', 'uploaded_at', 'document_list']
+    search_fields = ['card__title', 'title']
+    list_filter = ['uploaded_at', 'card__city']
+    readonly_fields = ['uploaded_at', 'id']
+    
+    fieldsets = (
+        ('📄 Документ', {
+            'fields': ('title', 'file', 'card')
+        }),
+        ('📂 Подборка', {
+            'fields': ('document_list',)
+        }),
+        ('⏰ Дата загрузки', {
+            'fields': ('uploaded_at',),
+            'classes': ('collapse',)
+        }),
+    )
 
 @admin.register(CardReview)
 class CardReviewAdmin(admin.ModelAdmin):
-    list_display = ['card', 'user', 'rating', 'created_at']
-    readonly_fields = ['card', 'user', 'text', 'rating', 'created_at']
+    list_display = ['card', 'user', 'rating', 'created_at', 'text']
+    search_fields = ['card__title', 'user__phone_number', 'text']
+    list_filter = ['rating', 'created_at', 'card__city']
+    readonly_fields = ['created_at', 'id']
+    
+    fieldsets = (
+        ('📝 Отзыв', {
+            'fields': ('card', 'user', 'rating', 'text')
+        }),
+        ('⏰ Дата', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
 
 @admin.register(CardQuestion)
 class CardQuestionAdmin(admin.ModelAdmin):
     list_display = ['card', 'user', 'question', 'answer', 'created_at']
-    readonly_fields = ['card', 'user', 'question', 'created_at']  # answer редактируем только суперпользователем
+    search_fields = ['card__title', 'question', 'answer', 'user__phone_number']
+    list_filter = ['card__city', 'created_at']
+    readonly_fields = ['created_at', 'id']
+    
+    fieldsets = (
+        ('❓ Вопрос', {
+            'fields': ('card', 'user', 'question', 'created_at')
+        }),
+        ('💬 Ответ', {
+            'fields': ('answer',)
+        }),
+    )
 
     def get_readonly_fields(self, request, obj=None):
+        readonly = list(self.readonly_fields)
         if not request.user.is_superuser:
-            return self.readonly_fields + ['answer']
-        return self.readonly_fields
-
-    list_filter = ['card__title', 'card__city']
-    search_fields = ['question', 'answer', 'user__phone_number']
+            readonly.append('answer')
+        return readonly
 
 
 # ==================== ЗАЯВКИ НА ЗВОНОК ====================
@@ -222,16 +265,28 @@ class DiscountRequestAdmin(admin.ModelAdmin):
 
 @admin.register(Recommendation)
 class RecommendationAdmin(admin.ModelAdmin):
-    list_display = ['card', 'user', 'score', 'reason', 'created_at']
-    list_filter = ['score', 'created_at']
+    list_display = ['user', 'card', 'score', 'reason', 'created_at']
+    list_filter = ['score', 'created_at', 'card__city']
     search_fields = ['card__title', 'user__phone_number', 'reason']
-    readonly_fields = ['created_at']
-
-    def get_readonly_fields(self, request, obj=None):
-        if obj is None:
-            return self.readonly_fields
-        # Рекомендации автоматически создаются, редактировать нельзя
-        return ['user', 'card', 'score', 'reason', 'created_at']
+    readonly_fields = ['created_at', 'user', 'card', 'score', 'reason']
+    
+    fieldsets = (
+        ('🎯 Рекомендация', {
+            'fields': ('user', 'card', 'score', 'reason')
+        }),
+        ('⏰ Дата создания', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # Рекомендации создаются автоматически
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Только суперпользователь может удалять
+        return request.user.is_superuser
 
 
 # ==================== AI АССИСТЕНТ ====================
@@ -239,27 +294,29 @@ class RecommendationAdmin(admin.ModelAdmin):
 @admin.register(AIAssistant)
 class AIAssistantAdmin(admin.ModelAdmin):
     list_display = ['name', 'api_provider', 'model_name', 'is_active', 'updated_at']
-    list_filter = ['api_provider', 'is_active']
+    list_filter = ['api_provider', 'is_active', 'created_at']
+    search_fields = ['name', 'model_name']
     readonly_fields = ['created_at', 'updated_at']
 
     fieldsets = (
-        ('Основная информация', {
+        ('🤖 Основная информация', {
             'fields': ('name', 'is_active', 'created_at', 'updated_at')
         }),
-        ('API конфигурация', {
+        ('🔑 API конфигурация', {
             'fields': ('api_provider', 'api_key', 'model_name'),
             'description': 'Ключ API можно установить через переменные окружения для безопасности'
         }),
-        ('Параметры модели', {
+        ('⚙️ Параметры модели', {
             'fields': ('system_prompt', 'temperature', 'max_tokens'),
         }),
     )
 
     def get_readonly_fields(self, request, obj=None):
+        readonly = list(self.readonly_fields)
         # Ограничить редактирование api_key в админке для безопасности
         if not request.user.is_superuser:
-            return self.readonly_fields + ['api_key']
-        return self.readonly_fields
+            readonly.append('api_key')
+        return readonly
 
 
 # ==================== ИСТОРИЯ ЧАТОВ ====================

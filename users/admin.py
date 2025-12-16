@@ -48,7 +48,7 @@ class UserAdmin(BaseUserAdmin):
 
     fieldsets = (
         (None, {'fields': ('phone_number', 'password')}),
-        (_('Personal info'), {'fields': ('name',)}),
+        (_('Personal info'), {'fields': ('name', 'profile_photo')}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login',)}),
     )
@@ -56,7 +56,7 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('phone_number', 'name', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser'),
+            'fields': ('phone_number', 'name', 'profile_photo', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser'),
         }),
     )
 

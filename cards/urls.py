@@ -22,6 +22,7 @@ from .views import (
     ReviewListCreateView,  # 🔑 НОВОЕ
     ReviewDetailView,  # 🔑 НОВОЕ
     CardCurationsView,  # 🔑 НОВОЕ
+    SearchHistoryView,  # 🔑 ИСТОРИЯ ПОИСКА
 )
 from .views_ai import (
     DiscountRequestCreateView,
@@ -51,6 +52,7 @@ urlpatterns = [
     path("questions/<int:id>/", CardQuestionDetailView.as_view(), name="card_question_detail"),
     path("questions/<int:pk>/answer/", CardQuestionAnswerView.as_view(), name="card_question_answer"),
     path("search/", CardSearchView.as_view(), name="card_search"),
+    path("search-history/", SearchHistoryView.as_view(), name="search_history"),
     # 🔑 НОВЫЕ: История просмотров
     path("<int:card_pk>/view-history/", CardViewHistoryView.as_view(), name="card_view_history"),
     path("view-history/me/", UserViewHistoryListView.as_view(), name="my_view_history"),
