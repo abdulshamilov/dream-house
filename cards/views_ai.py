@@ -137,13 +137,13 @@ class AIChatView(generics.GenericAPIView):
     description="Возвращает последние 10 сообщений из чата с AI ассистентом с найденными квартирами и ответами AI"
 )
 class ChatHistoryView(generics.ListAPIView):
-    """История чатов с AI - последние 10 сообщений пользователя"""
+    """История чатов с AI - последние 5 сообщений пользователя"""
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Возвращаем последние 10 сообщений
-        return ChatMessage.objects.filter(user=self.request.user).order_by('-created_at')[:10]
+        # Возвращаем последние 5 сообщений
+        return ChatMessage.objects.filter(user=self.request.user).order_by('-created_at')[:5]
 
 
 @extend_schema(

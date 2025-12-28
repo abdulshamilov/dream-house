@@ -1,24 +1,31 @@
+# Django
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.utils import timezone
+from datetime import timedelta
 
-from rest_framework import generics, permissions, status, serializers, views
+# DRF
+from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 
+# Third-party
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 
-from .models import Card, CardReview, CardQuestion, CardVideo, SearchHistory, Favorite, Review
+# Local
+from .models import (
+    Card, CardReview, CardQuestion, CardVideo, 
+    SearchHistory, Favorite, ViewHistory, ReviewLike
+)
 from .serializers import (
-    CardSerializer,
-    CardReviewSerializer,
-    CardQuestionSerializer,
-    CardVideoSerializer,
-    CallRequestSerializer,
-    FavoriteSerializer,
+    CardSerializer, CardReviewSerializer, CardQuestionSerializer,
+    CardVideoSerializer, CallRequestSerializer, FavoriteSerializer,
 )
 from .filters import CardFilter
 from .permissions import IsAdminOrReadOnly
+from .pagination import CustomPagination
 
 # -------------------------------
 # Сериализаторы рейтинга
@@ -36,8 +43,12 @@ class RateCardResponseSerializer(serializers.Serializer):
 # -------------------------------
 @extend_schema(
     summary="Получить список карточек",
-    description="Возвращает список всех карточек недвижимости с поддержкой фильтров.",
-    responses=CardSerializer(many=True)
+    description="Возвращает список всех карточек недвижимости с поддержкой фильтров и пагинации. Параметры: limit (размер страницы, макс 100), page (номер страницы, по умолчанию 1)",
+    responses=CardSerializer(many=True),
+    parameters=[
+        OpenApiParameter(name='limit', description='Размер страницы (по умолчанию 10, максимум 100)', required=False, type=int),
+        OpenApiParameter(name='page', description='Номер страницы (по умолчанию 1)', required=False, type=int),
+    ]
 )
 class CardListView(generics.ListAPIView):
     queryset = Card.objects.all()
@@ -45,6 +56,7 @@ class CardListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     filter_backends = [DjangoFilterBackend]
     filterset_class = CardFilter
+    pagination_class = CustomPagination
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -287,6 +299,62 @@ class CardReviewDetailView(generics.RetrieveAPIView):
     serializer_class = CardReviewSerializer
     lookup_field = "id"
 
+
+@extend_schema(
+    summary="Лайк/анлайк отзыв",
+    description="PUT - лайк отзыв, DELETE - снять лайк",
+    responses={200: {"detail": "Liked"}}
+)
+class ReviewLikeView(generics.GenericAPIView):
+    """Лайк на отзыв"""
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'review_id'
+    
+    def get_object(self):
+        review_id = self.kwargs.get(self.lookup_url_kwarg)
+        return get_object_or_404(CardReview, id=review_id)
+    
+    def put(self, request, *args, **kwargs):
+        """Добавить лайк"""
+        from .models import ReviewLike
+        review = self.get_object()
+        
+        like, created = ReviewLike.objects.get_or_create(
+            review=review,
+            user=request.user
+        )
+        
+        if created:
+            return Response(
+                {"detail": "Liked", "likes_count": review.likes_count},
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"detail": "Already liked"},
+                status=status.HTTP_200_OK
+            )
+    
+    def delete(self, request, *args, **kwargs):
+        """Удалить лайк"""
+        from .models import ReviewLike
+        review = self.get_object()
+        
+        try:
+            like = ReviewLike.objects.get(review=review, user=request.user)
+            like.delete()
+            return Response(
+                {"detail": "Unliked", "likes_count": review.likes_count},
+                status=status.HTTP_200_OK
+            )
+        except ReviewLike.DoesNotExist:
+            return Response(
+                {"detail": "Not liked"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
 @extend_schema(
     summary="Получить вопрос по ID",
     responses=CardQuestionSerializer
@@ -398,6 +466,27 @@ class CardSearchView(generics.ListAPIView):
         if smart_filters:
             queryset = queryset.filter(smart_filters)
         
+        # Применить явные фильтры из параметров запроса
+        price_from = self.request.query_params.get("price_from")
+        price_to = self.request.query_params.get("price_to")
+        city = self.request.query_params.get("city")
+        rooms = self.request.query_params.get("rooms")
+        building_material = self.request.query_params.get("building_material")
+        rating_min = self.request.query_params.get("rating_min")
+        
+        if price_from:
+            queryset = queryset.filter(price__gte=float(price_from))
+        if price_to:
+            queryset = queryset.filter(price__lte=float(price_to))
+        if city:
+            queryset = queryset.filter(city__icontains=city)
+        if rooms:
+            queryset = queryset.filter(rooms=int(rooms))
+        if building_material:
+            queryset = queryset.filter(building_material__icontains=building_material)
+        if rating_min:
+            queryset = queryset.filter(rating__gte=float(rating_min))
+        
         # Умная сортировка на основе истории поиска пользователя
         if self.request.user.is_authenticated:
             # Получить популярные фильтры из истории этого пользователя за последние 7 дней
@@ -477,10 +566,10 @@ class UserViewHistoryListView(generics.ListAPIView):
 
 @extend_schema(
     summary="История поиска пользователя",
-    description="Получить историю всех поисков текущего пользователя с аналитикой популярных запросов"
+    description="Получить историю всех поисков текущего пользователя с аналитикой популярных запросов. DELETE удаляет всю историю поиска."
 )
-class SearchHistoryView(generics.ListAPIView):
-    """История поиска пользователя с аналитикой"""
+class SearchHistoryView(generics.ListAPIView, generics.DestroyAPIView):
+    """История поиска пользователя с аналитикой и возможностью очистки"""
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -517,6 +606,14 @@ class SearchHistoryView(generics.ListAPIView):
             ],
             'recent_searches': serializer.data
         })
+    
+    def destroy(self, request, *args, **kwargs):
+        """Удалить всю историю поиска пользователя"""
+        SearchHistory.objects.filter(user=request.user).delete()
+        return Response(
+            {'message': 'Search history cleared successfully'},
+            status=status.HTTP_204_NO_CONTENT
+        )
     
     def get_serializer_class(self):
         from rest_framework import serializers
@@ -577,7 +674,7 @@ class ReviewListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         card_id = self.kwargs.get('card_pk')
-        return Review.objects.filter(card_id=card_id)
+        return CardReview.objects.filter(card_id=card_id)
     
     def get_serializer_class(self):
         from .serializers import ReviewSerializer, ReviewCreateUpdateSerializer
@@ -586,7 +683,7 @@ class ReviewListCreateView(generics.ListCreateAPIView):
         return ReviewSerializer
     
     def perform_create(self, serializer):
-        from .models import Review
+        from .models import CardReview
         card_id = self.kwargs.get('card_pk')
         card = get_object_or_404(Card, id=card_id)
         review = serializer.save(user=self.request.user, card=card)
@@ -603,7 +700,7 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Review.objects.all()
+        return CardReview.objects.all()
     
     def get_serializer_class(self):
         from .serializers import ReviewSerializer, ReviewCreateUpdateSerializer
@@ -660,3 +757,77 @@ class CardCurationsView(generics.RetrieveAPIView):
             'card_id': card.id,
             'curations': curations_data
         }, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    summary="Получить подборку для меня",
+    description="Возвращает персональные рекомендации на основе просмотров и рейтинга. Параметры: limit, page",
+    responses=CardSerializer(many=True),
+    parameters=[
+        OpenApiParameter(name='limit', description='Размер страницы (по умолчанию 10, максимум 100)', required=False, type=int),
+        OpenApiParameter(name='page', description='Номер страницы (по умолчанию 1)', required=False, type=int),
+    ]
+)
+class PersonalRecommendationsView(generics.ListAPIView):
+    """Подборка для пользователя на основе просмотренных карточек"""
+    serializer_class = CardSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Получить города и типы домов просмотренных карточек
+        viewed_cards = ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)[:10]
+        
+        if viewed_cards:
+            viewed_card_objects = Card.objects.filter(id__in=viewed_cards)
+            
+            # Получить предпочтения пользователя
+            preferred_cities = viewed_card_objects.values_list('city', flat=True).distinct()
+            preferred_types = viewed_card_objects.values_list('house_type', flat=True).distinct()
+            avg_price = viewed_card_objects.values_list('price', flat=True)
+            
+            if avg_price:
+                avg_price = sum(avg_price) / len(avg_price)
+                price_range_min = avg_price * 0.7
+                price_range_max = avg_price * 1.3
+            else:
+                price_range_min = 0
+                price_range_max = 999999999
+            
+            # Рекомендуем похожие карточки
+            recommendations = Card.objects.filter(
+                Q(city__in=preferred_cities) | Q(house_type__in=preferred_types),
+                price__gte=price_range_min,
+                price__lte=price_range_max
+            ).exclude(
+                id__in=viewed_cards  # Исключаем уже просмотренные
+            ).order_by('-rating', '-id')[:20]
+        else:
+            # Если нет просмотров, показываем топ по рейтингу
+            recommendations = Card.objects.all().order_by('-rating', '-id')[:20]
+        
+        return recommendations
+
+
+@extend_schema(
+    summary="Недавно просмотренные",
+    description="Возвращает 3-4 последние просмотренные карточки пользователем. Параметры: limit, page",
+    responses=CardSerializer(many=True),
+    parameters=[
+        OpenApiParameter(name='limit', description='Размер страницы (по умолчанию 10, максимум 100)', required=False, type=int),
+        OpenApiParameter(name='page', description='Номер страницы (по умолчанию 1)', required=False, type=int),
+    ]
+)
+class RecentlyViewedView(generics.ListAPIView):
+    """Последние просмотренные карточки (максимум 4)"""
+    serializer_class = CardSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
+    
+    def get_queryset(self):
+        user = self.request.user
+        # Получить последние 4 просмотренные карточки
+        recent_views = ViewHistory.objects.filter(user=user).order_by('-viewed_at').values_list('card_id', flat=True)[:4]
+        return Card.objects.filter(id__in=recent_views).order_by('-id')

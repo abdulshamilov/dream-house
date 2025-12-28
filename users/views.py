@@ -1,25 +1,29 @@
+# DRF
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from drf_spectacular.utils import extend_schema
-from django.contrib.auth import get_user_model
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework import generics, permissions, status
+from rest_framework_simplejwt.tokens import RefreshToken
 
+# DRF Spectacular
+from drf_spectacular.utils import extend_schema
+
+# Django
+from django.contrib.auth import get_user_model
+from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_http_methods
+
+# Local
 from .serializers import (
-    RegisterSerializer, 
-    UserSerializer, 
-    ReferralSerializer, 
-    CustomTokenObtainPairSerializer,
-    PasswordResetRequestSerializer,
-    PasswordResetConfirmSerializer,
-    TokenSerializer,
-    ChangePasswordSerializer,
-    UpdateProfileSerializer,
-    DeleteAccountSerializer,
+    RegisterSerializer, UserSerializer, ReferralSerializer, 
+    CustomTokenObtainPairSerializer, PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer, TokenSerializer,
+    ChangePasswordSerializer, UpdateProfileSerializer, DeleteAccountSerializer,
 )
-from rest_framework import generics, permissions
 from .models import Referral, PasswordResetOTP
 
-from rest_framework.decorators import api_view, permission_classes
+# Standard Library
 import uuid
 
 User = get_user_model()
@@ -233,7 +237,7 @@ class UpdateProfileView(APIView):
         responses={200: UserSerializer},
         tags=["User"],
         summary="Обновить профиль (имя, фото)",
-        description="Изменить имя пользователя или загрузить новое фото профиля"
+        description="Изменить имя пользователя или загрузить новое фото профиля. Максимальный размер фото: 5MB. Поддерживаемые форматы: JPEG, PNG, GIF"
     )
     def put(self, request):
         serializer = UpdateProfileSerializer(
@@ -242,6 +246,17 @@ class UpdateProfileView(APIView):
             partial=True
         )
         serializer.is_valid(raise_exception=True)
+        
+        # Delete old photo if new one is being uploaded
+        user = request.user
+        if 'profile_photo' in request.FILES and user.profile_photo:
+            # Delete old file from storage
+            if user.profile_photo.name:
+                import os
+                from django.core.files.storage import default_storage
+                if default_storage.exists(user.profile_photo.name):
+                    default_storage.delete(user.profile_photo.name)
+        
         user = serializer.save()
         
         import logging
@@ -249,6 +264,31 @@ class UpdateProfileView(APIView):
         logger.info(f"User {user.phone_number} updated profile")
         
         return Response(UserSerializer(user).data, status=200)
+    
+    @extend_schema(
+        responses={200: {"detail": "Photo deleted"}},
+        tags=["User"],
+        summary="Удалить фото профиля"
+    )
+    def delete(self, request):
+        """Удалить фото профиля пользователя"""
+        user = request.user
+        
+        if user.profile_photo:
+            # Delete file from storage
+            import os
+            from django.core.files.storage import default_storage
+            if default_storage.exists(user.profile_photo.name):
+                default_storage.delete(user.profile_photo.name)
+            
+            user.profile_photo = None
+            user.save()
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"User {user.phone_number} deleted profile photo")
+        
+        return Response({"detail": "Photo deleted successfully"}, status=200)
 
 
 class DeleteAccountView(APIView):
@@ -260,7 +300,7 @@ class DeleteAccountView(APIView):
         responses={204: None},
         tags=["User"],
         summary="Удалить аккаунт (необратимо)",
-        description="Безвозвратно удалить аккаунт, все квартиры, отзывы, историю чатов. Требует подтверждение пароля."
+        description="Безвозвратно удалить аккаунт, все квартиры, отзывы, историю чатов. Требует подтверждение пароля. Эта операция не может быть отменена."
     )
     def delete(self, request):
         serializer = DeleteAccountSerializer(data=request.data)
@@ -277,15 +317,27 @@ class DeleteAccountView(APIView):
             )
         
         phone_number = user.phone_number
+        user_id = user.id
+        
+        # Delete user profile photo before deleting user
+        if user.profile_photo:
+            try:
+                from django.core.files.storage import default_storage
+                if default_storage.exists(user.profile_photo.name):
+                    default_storage.delete(user.profile_photo.name)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error deleting profile photo for user {phone_number}: {str(e)}")
         
         import logging
         logger = logging.getLogger(__name__)
-        logger.warning(f"User {phone_number} deleted account")
+        logger.warning(f"User {phone_number} (ID: {user_id}) deleted account with all data")
         
         # Удаляем все данные пользователя (каскадное удаление)
         user.delete()
         
         return Response(
-            {"detail": "Account deleted successfully"}, 
+            {"detail": "Account and all associated data deleted successfully"}, 
             status=204
         )

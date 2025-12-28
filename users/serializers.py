@@ -1,23 +1,47 @@
+# DRF
 from rest_framework import serializers
-from django.contrib.auth import get_user_model, authenticate
-from .models import Referral
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+# Django
+from django.contrib.auth import get_user_model, authenticate
+
+# Local
+from .models import Referral
 
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
+    ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Реферальный код (UUID) от другого пользователя")
 
     class Meta:
         model = User
-        fields = ("phone_number", "password")
+        fields = ("phone_number", "password", "ref_code")
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        ref_code = validated_data.pop("ref_code", None)
+        
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
         user.save()
+        
+        # Обработать реферальный код если предоставлен
+        if ref_code:
+            try:
+                import uuid
+                # Проверяем есть ли реферал с таким кодом
+                referral = Referral.objects.get(code=ref_code)
+                # Создаем новый реферал запись
+                Referral.objects.create(
+                    referrer=referral.referrer,  # Тот кто пригласил
+                    referred=user  # Новый пользователь
+                )
+            except Referral.DoesNotExist:
+                # Код не найден, просто создаем пользователя без реферала
+                pass
+        
         return user
 
 
@@ -117,6 +141,20 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('name', 'profile_photo')
+    
+    def validate_profile_photo(self, value):
+        """Validate profile photo"""
+        if value:
+            # Check file size (max 5MB)
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("Profile photo size must not exceed 5MB")
+            
+            # Check file type
+            allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif']
+            if value.content_type not in allowed_types:
+                raise serializers.ValidationError("Only JPEG, PNG and GIF images are allowed")
+        
+        return value
 
 
 class DeleteAccountSerializer(serializers.Serializer):

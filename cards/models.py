@@ -95,6 +95,13 @@ class Card(models.Model):
     def __str__(self):
         return self.title
     
+    @property
+    def price_metr(self):
+        """Цена за квадратный метр"""
+        if self.area and self.area > 0:
+            return float(self.price) / float(self.area)
+        return 0
+    
     
 class CallRequest(models.Model):
     card = models.ForeignKey(
@@ -155,9 +162,32 @@ class CardReview(models.Model):
     text = models.TextField()
     rating = models.PositiveIntegerField(default=5)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"Review by {self.user} for {self.card.title}"
+    
+    @property
+    def likes_count(self):
+        """Количество лайков отзыва"""
+        return self.likes.count()
+
+
+class ReviewLike(models.Model):
+    """Лайк на отзыв"""
+    review = models.ForeignKey(CardReview, related_name='likes', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('review', 'user')  # Один лайк на пользователя
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user} liked review {self.review.id}"
 
 
 class CardQuestion(models.Model):

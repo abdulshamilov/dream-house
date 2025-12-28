@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion,
+    Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,  # 🔑 НОВОЕ: ReviewLike
     CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
     CardDocumentList, ViewHistory  # 🔑 НОВЫЕ
 )
@@ -92,8 +92,22 @@ class CardDocumentAdmin(admin.ModelAdmin):
 
 @admin.register(CardReview)
 class CardReviewAdmin(admin.ModelAdmin):
-    list_display = ['card', 'user', 'rating', 'created_at']
+    list_display = ['card', 'user', 'rating', 'likes_count', 'created_at']  # 🔑 НОВОЕ: likes_count
     readonly_fields = ['card', 'user', 'text', 'rating', 'created_at']
+    
+    def likes_count(self, obj):
+        """Количество лайков"""
+        return obj.likes.count()
+    likes_count.short_description = 'Лайки'
+
+
+@admin.register(ReviewLike)  # 🔑 НОВОЕ: Register ReviewLike
+class ReviewLikeAdmin(admin.ModelAdmin):
+    list_display = ['review', 'user', 'created_at']
+    readonly_fields = ['review', 'user', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['user__phone_number', 'review__text']
+
 
 @admin.register(CardQuestion)
 class CardQuestionAdmin(admin.ModelAdmin):

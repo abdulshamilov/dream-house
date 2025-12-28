@@ -1,7 +1,10 @@
+# DRF
 from rest_framework import serializers
+
+# Local
 from .models import (
-    Card, CardImage, CardVideo, CardDocument, CallRequest, Review,
-    CardReview, CardQuestion, SearchHistory,
+    Card, CardImage, CardVideo, CardDocument, CallRequest,
+    CardReview, CardQuestion, SearchHistory, ReviewLike,
     Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
     CardDocumentList, ViewHistory
 )
@@ -44,12 +47,13 @@ class CardCurationSerializer(serializers.ModelSerializer):
     """Минимальная информация о карточке для подборок"""
     developer = DeveloperInCardSerializer(read_only=True)
     is_favorite = serializers.SerializerMethodField()
+    price_metr = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Цена за кв.м
     
     class Meta:
         model = Card
         fields = [
-            'id', 'title', 'price', 'rooms', 'area',
-            'city', 'rating', 'developer', 'is_favorite'
+            'id', 'title', 'address', 'price', 'price_metr',  # 🔑 НОВОЕ: Цена за кв.м
+            'rooms', 'area', 'city', 'rating', 'developer', 'is_favorite'
         ]
     
     def get_is_favorite(self, obj):
@@ -57,6 +61,10 @@ class CardCurationSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return Favorite.objects.filter(user=request.user, card=obj).exists()
         return False
+    
+    def get_price_metr(self, obj):
+        """Получить цену за квадратный метр"""
+        return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
 
 class CardVideoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -99,13 +107,15 @@ class CardSerializer(serializers.ModelSerializer):
     list_curations = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Подборки как объекты
     
     # 🔑 ИЗМЕНЕНО: Теперь отображает ID, имя и фото застройщика
-    developer = DeveloperInCardSerializer(read_only=True) 
+    developer = DeveloperInCardSerializer(read_only=True)
+    price_metr = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Цена за кв.м
 
     class Meta:
         model = Card
         fields = [
             'id', 'title', 'address', 'description',
-            'price', 'rooms', 'city', 'house_type',
+            'price', 'price_metr',  # 🔑 НОВОЕ: Цена за квадратный метр
+            'rooms', 'city', 'house_type',
             'area', 'building_material', 'category', 'floors_total', 
             'elevator', 'parking', 'balcony', 'ceiling_height',
             'latitude', 'longitude',
@@ -118,6 +128,10 @@ class CardSerializer(serializers.ModelSerializer):
             'created_at',
             'is_favorite'
         ]
+    
+    def get_price_metr(self, obj):
+        """Получить цену за квадратный метр"""
+        return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
 
     def get_is_favorite(self, obj):
         request = self.context.get('request')
@@ -130,13 +144,9 @@ class CardSerializer(serializers.ModelSerializer):
         import json
         try:
             curations_ids = json.loads(obj.list_curations)
-            if curations_ids:
-                cards = Card.objects.filter(id__in=curations_ids)
-                # Сериализуем с минимальной информацией для экономии трафика
-                return CardCurationSerializer(cards, many=True, context=self.context).data
-        except (json.JSONDecodeError, ValueError):
-            pass
-        return []
+            return curations_ids if curations_ids else []
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return []
 
 
 # -------------------------------
@@ -169,9 +179,25 @@ class CallRequestSerializer(serializers.ModelSerializer):
 
 class CardReviewSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
+    likes_count = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Количество лайков
+    is_liked = serializers.SerializerMethodField()     # 🔑 НОВОЕ: Лайкнул ли текущий пользователь
+    
     class Meta:
         model = CardReview
-        fields = ['id', 'user', 'text', 'rating', 'created_at']
+        fields = ['id', 'user', 'text', 'rating', 'likes_count', 'is_liked', 'created_at', 'updated_at']
+        read_only_fields = ['likes_count', 'is_liked']
+    
+    def get_likes_count(self, obj):
+        """Получить количество лайков"""
+        return obj.likes_count
+    
+    def get_is_liked(self, obj):
+        """Проверить лайкнул ли текущий пользователь этот отзыв"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from .models import ReviewLike
+            return ReviewLike.objects.filter(review=obj, user=request.user).exists()
+        return False
 
 class CardQuestionSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
@@ -277,12 +303,12 @@ class ReviewSerializer(serializers.ModelSerializer):
     user_phone = serializers.CharField(source='user.phone_number', read_only=True)
     
     class Meta:
-        model = Review
+        model = CardReview
         fields = ['id', 'user_name', 'user_phone', 'rating', 'text', 'created_at', 'updated_at']
         read_only_fields = ['id', 'user_name', 'user_phone', 'created_at', 'updated_at']
 
 
 class ReviewCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Review
+        model = CardReview
         fields = ['rating', 'text']

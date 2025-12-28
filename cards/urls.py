@@ -23,6 +23,9 @@ from .views import (
     ReviewDetailView,  # 🔑 НОВОЕ
     CardCurationsView,  # 🔑 НОВОЕ
     SearchHistoryView,  # 🔑 ИСТОРИЯ ПОИСКА
+    PersonalRecommendationsView,  # 🔑 ПОДБОРКА ДЛЯ МЕНЯ
+    RecentlyViewedView,  # 🔑 НЕДАВНО ПРОСМОТРЕННЫЕ
+    ReviewLikeView,  # 🔑 ЛАЙКИ НА ОТЗЫВЫ
 )
 from .views_ai import (
     DiscountRequestCreateView,
@@ -36,6 +39,8 @@ from .views_ai import (
 urlpatterns = [
     path("", CardListView.as_view(), name="cards_list"),
     path("filter/", CardFilterPostView.as_view(), name="cards_filter_post"),
+    path("recommendations/for-me/", PersonalRecommendationsView.as_view(), name="personal_recommendations"),  # 🔑 ПОДБОРКА ДЛЯ МЕНЯ
+    path("recent-views/", RecentlyViewedView.as_view(), name="recently_viewed"),  # 🔑 НЕДАВНО ПРОСМОТРЕННЫЕ
     path("<int:pk>/", CardDetailView.as_view(), name="card_detail"),
     path("<int:pk>/favorite/", FavoriteAPIView.as_view(), name="card_favorite"),
     path("favorites/me/", MyFavoritesListAPIView.as_view(), name="my_favorites"),
@@ -44,6 +49,7 @@ urlpatterns = [
     path("<int:pk>/videos/add/", CardVideoCreateView.as_view(), name="card_video_add"),
     path("<int:pk>/reviews/add/", CardReviewCreateView.as_view(), name="card_review_add"),
     path("reviews/<int:id>/", CardReviewDetailView.as_view(), name="card_review_detail"),
+    path("reviews/<int:review_id>/like/", ReviewLikeView.as_view(), name="review_like"),  # 🔑 НОВОЕ: Лайк на отзыв
     path("<int:card_pk>/user-reviews/", ReviewListCreateView.as_view(), name="card_user_reviews"),
     path("user-reviews/<int:pk>/", ReviewDetailView.as_view(), name="user_review_detail"),
     path("<int:pk>/curations/", CardCurationsView.as_view(), name="card_curations"),
