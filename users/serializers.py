@@ -168,3 +168,29 @@ class ReferralSerializer(serializers.ModelSerializer):
     class Meta:
         model = Referral
         fields = ['referred_name', 'referred_phone', 'created_at']
+
+
+class SMSRequestSerializer(serializers.Serializer):
+    """Request OTP code for SMS login"""
+    phone_number = serializers.CharField(max_length=15, required=True)
+    
+    def validate_phone_number(self, value):
+        if not value.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+            raise serializers.ValidationError("Phone number must contain only digits and optional +/- symbols")
+        return value
+
+
+class SMSVerifySerializer(serializers.Serializer):
+    """Verify OTP code and login/register user"""
+    phone_number = serializers.CharField(max_length=15, required=True)
+    otp = serializers.CharField(max_length=6, min_length=6, required=True)
+    
+    def validate_phone_number(self, value):
+        if not value.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+            raise serializers.ValidationError("Phone number must contain only digits and optional +/- symbols")
+        return value
+    
+    def validate_otp(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP must contain only digits")
+        return value

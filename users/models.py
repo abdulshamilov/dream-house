@@ -73,3 +73,28 @@ class PasswordResetOTP(models.Model):
     
     def __str__(self):
         return f"OTP for {self.user.phone_number}"
+
+
+class LoginOTP(models.Model):
+    """OTP codes for SMS-based login (without password)"""
+    phone_number = models.CharField(max_length=15)
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = [['phone_number', 'otp']]
+    
+    def is_valid(self):
+        """Check if OTP is still valid (5 minutes expiry)"""
+        expiry_time = self.created_at + timedelta(minutes=5)
+        return timezone.now() < expiry_time and not self.is_used
+    
+    @staticmethod
+    def generate_otp():
+        """Generate a 6-digit OTP"""
+        return str(random.randint(100000, 999999))
+    
+    def __str__(self):
+        return f"Login OTP for {self.phone_number}"

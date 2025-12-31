@@ -13,6 +13,7 @@ from drf_spectacular.utils import extend_schema
 from django.contrib.auth import get_user_model
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
+from django.conf import settings
 
 # Local
 from .serializers import (
@@ -20,6 +21,7 @@ from .serializers import (
     CustomTokenObtainPairSerializer, PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer, TokenSerializer,
     ChangePasswordSerializer, UpdateProfileSerializer, DeleteAccountSerializer,
+    SMSRequestSerializer, SMSVerifySerializer,
 )
 from .models import Referral, PasswordResetOTP
 
@@ -341,3 +343,287 @@ class DeleteAccountView(APIView):
             {"detail": "Account and all associated data deleted successfully"}, 
             status=204
         )
+
+
+class SMSRequestView(APIView):
+    """Request OTP code for SMS-based login"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @extend_schema(
+        request=SMSRequestSerializer,
+        responses={200: {"detail": "OTP sent to phone"}},
+        tags=["Auth"],
+        summary="Запрос кода входа в SMS (как Ozon)"
+    )
+    def post(self, request):
+        from .models import LoginOTP
+        serializer = SMSRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        phone_number = serializer.validated_data['phone_number']
+        
+        # Generate OTP
+        otp = LoginOTP.generate_otp()
+        
+        # Delete old unused OTPs for this phone number
+        LoginOTP.objects.filter(phone_number=phone_number, is_used=False).delete()
+        
+        # Create new OTP
+        LoginOTP.objects.create(phone_number=phone_number, otp=otp)
+        
+        # Send OTP via SMS
+        self._send_sms(phone_number, otp)
+        
+        return Response({
+            "detail": "OTP sent to your phone",
+            "otp": otp if settings.DEBUG else None  # Remove in production!
+        }, status=200)
+    
+    def _send_sms(self, phone_number, otp):
+        """Send OTP via SMS using configured provider"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Check if we should actually send SMS (SEND_REAL_SMS flag or not DEBUG mode)
+            should_send_real = settings.SEND_REAL_SMS or not settings.DEBUG
+            
+            logger.info(f"[SMS] DEBUG={settings.DEBUG}, SEND_REAL_SMS={settings.SEND_REAL_SMS}, should_send_real={should_send_real}")
+            
+            if should_send_real:
+                # Production or test mode: use real SMS provider
+                logger.info(f"[SMS] SENDING REAL SMS to {phone_number}")
+                self._send_via_provider(phone_number, otp, logger)
+            else:
+                # Development: just print to console
+                logger.info(f"[SMS DEV] OTP for {phone_number}: {otp}")
+        except Exception as e:
+            logger.error(f"Failed to send SMS to {phone_number}: {str(e)}")
+            # Don't raise - user should still get feedback
+    
+    def _send_via_provider(self, phone_number, otp, logger):
+        """Send SMS via configured provider (Twilio, AWS SNS, p1sms, etc.)"""
+        import os
+        
+        provider = os.getenv('SMS_PROVIDER', 'p1sms')
+        
+        if provider == 'p1sms':
+            self._send_via_p1sms(phone_number, otp, logger)
+        elif provider == 'twilio':
+            self._send_via_twilio(phone_number, otp, logger)
+        elif provider == 'aws':
+            self._send_via_aws_sns(phone_number, otp, logger)
+        elif provider == 'smtp':
+            self._send_via_smtp(phone_number, otp, logger)
+        else:
+            logger.warning(f"Unknown SMS provider: {provider}")
+    
+    def _send_via_p1sms(self, phone_number, otp, logger):
+        """Send SMS using p1sms (Russian SMS provider) - API v2"""
+        import requests
+        import json
+        
+        api_key = settings.P1SMS_API_KEY
+        
+        if not api_key:
+            logger.warning("p1sms API key not configured")
+            return
+        
+        # Normalize phone number for p1sms (should be like 79991234567 without +)
+        phone_digits = ''.join(c for c in phone_number if c.isdigit())
+        if phone_digits.startswith('7'):
+            phone_digits = '7' + phone_digits[-10:]  # Ensure 11 digits starting with 7
+        elif phone_digits.startswith('8'):
+            phone_digits = '7' + phone_digits[-10:]  # Convert 8 to 7
+        else:
+            phone_digits = '7' + phone_digits[-10:]  # Default to 7
+        
+        message_text = f"Kod Dream House: {otp}. Deistvitelen 5 minut."
+        
+        try:
+            # p1sms API v2 endpoint (admin.p1sms.ru)
+            url = "https://admin.p1sms.ru/apiSms/create"
+            
+            # Correct JSON payload for p1sms API v2
+            payload = {
+                "apiKey": api_key,
+                "sms": [
+                    {
+                        "channel": "digit",
+                        "text": message_text,
+                        "phone": phone_digits
+                    }
+                ]
+            }
+            
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            
+            logger.info(f"[p1sms] Sending SMS to {phone_number} (normalized: {phone_digits})")
+            logger.info(f"[p1sms] Message: {message_text}")
+            
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            result = response.json() if response.headers.get('content-type') == 'application/json' else response.text
+            
+            logger.info(f"[p1sms] Response Status: {response.status_code}")
+            logger.info(f"[p1sms] Response Body: {json.dumps(result) if isinstance(result, dict) else result}")
+                
+        except requests.exceptions.Timeout:
+            logger.error(f"[p1sms] Timeout for {phone_number}")
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[p1sms] Request error: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"[p1sms] Error: {str(e)}")
+            raise
+    
+    def _send_via_twilio(self, phone_number, otp, logger):
+        """Send SMS using Twilio"""
+        from twilio.rest import Client
+        import os
+        
+        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        from_number = os.getenv('TWILIO_FROM_NUMBER')
+        
+        if not all([account_sid, auth_token, from_number]):
+            logger.warning("Twilio credentials not configured")
+            return
+        
+        client = Client(account_sid, auth_token)
+        message_text = f"Your Dream House verification code: {otp}. Valid for 5 minutes."
+        
+        try:
+            message = client.messages.create(
+                body=message_text,
+                from_=from_number,
+                to=phone_number
+            )
+            logger.info(f"SMS sent via Twilio. SID: {message.sid}")
+        except Exception as e:
+            logger.error(f"Twilio error: {str(e)}")
+            raise
+    
+    def _send_via_aws_sns(self, phone_number, otp, logger):
+        """Send SMS using AWS SNS"""
+        import boto3
+        import os
+        
+        region = os.getenv('AWS_REGION', 'us-east-1')
+        
+        try:
+            sns_client = boto3.client('sns', region_name=region)
+            message_text = f"Your Dream House verification code: {otp}. Valid for 5 minutes."
+            
+            response = sns_client.publish(
+                PhoneNumber=phone_number,
+                Message=message_text,
+                MessageAttributes={
+                    'AWS.SNS.SMS.SenderID': {
+                        'DataType': 'String',
+                        'StringValue': 'DreamHouse'
+                    },
+                    'AWS.SNS.SMS.SMSType': {
+                        'DataType': 'String',
+                        'StringValue': 'Transactional'
+                    }
+                }
+            )
+            logger.info(f"SMS sent via AWS SNS. MessageId: {response['MessageId']}")
+        except Exception as e:
+            logger.error(f"AWS SNS error: {str(e)}")
+            raise
+    
+    def _send_via_smtp(self, phone_number, otp, logger):
+        """Send SMS using Email-to-SMS gateway"""
+        import smtplib
+        from email.mime.text import MIMEText
+        import os
+        
+        # Example for Russian SMS providers
+        # Different carriers have email gateways
+        carriers = {
+            'mts': '@mts.ru',
+            'beeline': '@beelinetel.ru',
+            'megafon': '@megafon.ru',
+            'rostelecom': '@rostelecom.ru'
+        }
+        
+        carrier = os.getenv('SMS_CARRIER', 'mts')
+        if carrier not in carriers:
+            logger.warning(f"Unknown carrier: {carrier}")
+            return
+        
+        # Extract just numbers from phone
+        phone_digits = ''.join(c for c in phone_number if c.isdigit())
+        if len(phone_digits) > 10:
+            phone_digits = phone_digits[-10:]  # Last 10 digits
+        
+        sms_email = f"{phone_digits}{carriers[carrier]}"
+        message_text = f"Your Dream House verification code: {otp}. Valid for 5 minutes."
+        
+        try:
+            # This is a placeholder - needs actual SMTP configuration
+            logger.info(f"SMS would be sent to {sms_email}")
+        except Exception as e:
+            logger.error(f"Email-to-SMS error: {str(e)}")
+            raise
+
+
+class SMSVerifyView(APIView):
+    """Verify OTP code and login/register user"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @extend_schema(
+        request=SMSVerifySerializer,
+        responses={200: TokenSerializer},
+        tags=["Auth"],
+        summary="Вход по коду из SMS (как Ozon)"
+    )
+    def post(self, request):
+        from .models import LoginOTP
+        serializer = SMSVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        phone_number = serializer.validated_data['phone_number']
+        otp = serializer.validated_data['otp']
+        
+        try:
+            otp_obj = LoginOTP.objects.filter(
+                phone_number=phone_number, 
+                otp=otp
+            ).latest('created_at')
+        except LoginOTP.DoesNotExist:
+            return Response({"detail": "Invalid OTP"}, status=400)
+        
+        if not otp_obj.is_valid():
+            return Response({"detail": "OTP expired or already used"}, status=400)
+        
+        # Get or create user
+        user, created = User.objects.get_or_create(phone_number=phone_number)
+        
+        # If user was just created, set a random password (not used for login)
+        if created:
+            import secrets
+            user.set_password(secrets.token_urlsafe(32))
+            user.save()
+        
+        # Mark OTP as used
+        otp_obj.is_used = True
+        otp_obj.save()
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data,
+            'is_new': created
+        }, status=200)

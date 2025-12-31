@@ -11,6 +11,8 @@ from .views import (
     ChangePasswordView,
     UpdateProfileView,
     DeleteAccountView,
+    SMSRequestView,
+    SMSVerifyView,
 )
 
 
@@ -26,4 +28,6 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('update-profile/', UpdateProfileView.as_view(), name='update-profile'),  # PUT для смены фото и имени, DELETE для удаления фото
     path('delete-account/', DeleteAccountView.as_view(), name='delete-account'),   # DELETE для удаления аккаунта
+    path('sms/request/', SMSRequestView.as_view(), name='sms-request'),  # Запрос OTP по SMS
+    path('sms/verify/', SMSVerifyView.as_view(), name='sms-verify'),    # Проверка OTP и вход
 ]

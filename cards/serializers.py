@@ -10,6 +10,14 @@ from .models import (
 )
 from developers.models import Developer
 
+# ============ USER SERIALIZERS ============
+class UserSimpleSerializer(serializers.Serializer):
+    """Упрощенные данные пользователя для отзывов и вопросов"""
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    phone_number = serializers.CharField(read_only=True)
+    profile_photo = serializers.ImageField(read_only=True)
+
 # -------------------------------
 # 🔑 НОВЫЙ: Сериализатор для Застройщика (для вложения)
 # -------------------------------
@@ -178,7 +186,7 @@ class CallRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ['card']
 
 class CardReviewSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = UserSimpleSerializer(read_only=True)
     likes_count = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Количество лайков
     is_liked = serializers.SerializerMethodField()     # 🔑 НОВОЕ: Лайкнул ли текущий пользователь
     
@@ -200,7 +208,7 @@ class CardReviewSerializer(serializers.ModelSerializer):
         return False
 
 class CardQuestionSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = UserSimpleSerializer(read_only=True)
     class Meta:
         model = CardQuestion
         fields = ['id', 'user', 'question', 'answer', 'created_at']
@@ -224,12 +232,6 @@ class SearchHistorySerializer(serializers.ModelSerializer):
         model = SearchHistory
         fields = ['id', 'query', 'created_at']
         read_only_fields = ['user']
-
-class CardQuestionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CardQuestion
-        fields = ['id', 'card', 'user', 'question', 'answer', 'created_at']
-        read_only_fields = ['card', 'user', 'answer', 'created_at']
 
 
 # ==================== СКИДКИ ====================
@@ -299,13 +301,12 @@ class ViewHistorySerializer(serializers.ModelSerializer):
 
 # 🔑 НОВЫЙ: Сериализатор для отзывов
 class ReviewSerializer(serializers.ModelSerializer):
-    user_name = serializers.CharField(source='user.name', read_only=True)
-    user_phone = serializers.CharField(source='user.phone_number', read_only=True)
+    user = UserSimpleSerializer(read_only=True)
     
     class Meta:
         model = CardReview
-        fields = ['id', 'user_name', 'user_phone', 'rating', 'text', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'user_name', 'user_phone', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'rating', 'text', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
 
 class ReviewCreateUpdateSerializer(serializers.ModelSerializer):
