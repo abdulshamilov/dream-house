@@ -43,8 +43,9 @@ class CardTests(APITestCase):
         url = reverse("cards_list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["title"], "Уютная квартира в центре")
+        self.assertIn("results", response.data)
+        self.assertGreaterEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["title"], "Уютная квартира в центре")
 
     def test_get_card_detail(self):
         url = reverse("card_detail", args=[self.card.id])
@@ -56,7 +57,8 @@ class CardTests(APITestCase):
         url = reverse("cards_list")
         response = self.client.get(url, {"city": 1})  # ✅ передаём число, не строку
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(all(str(card["city"]) == "1" for card in response.data))
+        self.assertIn("results", response.data)
+        self.assertTrue(all(str(card["city"]) == "1" for card in response.data["results"]))
 
     def test_rate_card(self):
         url = reverse("card_rate", args=[self.card.id])
@@ -91,3 +93,31 @@ class CardTests(APITestCase):
         data = {"phone_number": ""}
         response = self.client.post(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rate_card_one_vote_per_user(self):
+        url = reverse("card_rate", args=[self.card.id])
+        first = self.client.post(url, {"rating": 5}, format="json")
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.card.refresh_from_db()
+        self.assertEqual(float(self.card.rating), 5.0)
+        self.assertEqual(self.card.rating_count, 1)
+
+        second = self.client.post(url, {"rating": 3}, format="json")
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.card.refresh_from_db()
+        self.assertEqual(float(self.card.rating), 3.0)
+        self.assertEqual(self.card.rating_count, 1)  # не растет, обновление оценки
+
+    def test_curations_endpoint(self):
+        url = reverse("card_curations", args=[self.card.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("curations", response.data)
+        self.assertIsInstance(response.data["curations"], list)
+
+    def test_search_city_integer_param(self):
+        url = reverse("card_search")
+        response = self.client.get(url, {"q": "квартира", "city": 1})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # пагинация: results в данных
+        self.assertIn("results", response.data)

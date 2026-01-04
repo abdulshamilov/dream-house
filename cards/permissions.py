@@ -6,7 +6,8 @@ class IsAdminOrReadOnly(permissions.BasePermission):
     а редактировать/отвечать — только админам.
     """
     def has_permission(self, request, view):
-        if view.action == 'create':  # создание вопроса
-            return request.user.is_authenticated
-        # для изменения (ответ) — только админ
-        return request.user.is_staff
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if request.method == 'POST':
+            return request.user and request.user.is_authenticated
+        return request.user and request.user.is_staff

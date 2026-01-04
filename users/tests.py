@@ -2,6 +2,8 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
+from unittest.mock import patch, Mock
+import os
 
 User = get_user_model()
 
@@ -121,3 +123,29 @@ class AuthTests(APITestCase):
         url_users = reverse('users-list')
         response = self.client.get(url_users)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class SmsRuProviderTests(APITestCase):
+    def test_smsru_provider_is_used_and_normalizes_number(self):
+        # Force real sending branch and configure provider/env
+        with patch.dict(os.environ, {"SMS_PROVIDER": "smsru"}, clear=False):
+            with patch("requests.get") as mock_get:
+                mock_response = Mock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {"status": "OK", "status_code": 100}
+                mock_get.return_value = mock_response
+
+                with self.settings(SEND_REAL_SMS=True, SMSRU_API_ID="test_api_id"):
+                    url = reverse("sms-request")
+                    response = self.client.post(
+                        url,
+                        {"phone_number": "+79991234567"},
+                        format="json",
+                    )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                mock_get.assert_called_once()
+                _, kwargs = mock_get.call_args
+                self.assertEqual(kwargs["params"]["api_id"], "test_api_id")
+                self.assertEqual(kwargs["params"]["to"], "79991234567")
+                self.assertEqual(kwargs["params"]["msg"].startswith("Kod Dream House"), True)

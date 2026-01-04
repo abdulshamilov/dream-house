@@ -153,10 +153,14 @@ SIMPLE_JWT = {
 }
 
 # --- SMS Configuration ---
-SMS_PROVIDER = 'p1sms'
-P1SMS_API_KEY = 'FhcWTKyO2r5ed3PSLiTMu2ZQ409EMjp8ajB6FtS21Y1EJnMqxjUQU8u3RTOK'  # Direct API key
-# Force SEND_REAL_SMS = True for testing
-SEND_REAL_SMS = True  # Always send real SMS
+# Defaults now set to sms.ru so провайдер будет выбран без env
+SMS_PROVIDER = os.environ.get('SMS_PROVIDER', 'smsru')
+P1SMS_API_KEY = os.environ.get('P1SMS_API_KEY', '')
+SMSRU_API_ID = os.environ.get('SMSRU_API_ID', '73CF6BC6-704B-5E02-91A4-0E762C179A22')
+# Force real SMS only when explicitly enabled
+SEND_REAL_SMS = os.environ.get('SEND_REAL_SMS', 'False').lower() == 'true'
+# Allow returning OTP in response for easier manual testing (never enable in prod)
+SMS_DEBUG_RETURN_OTP = os.environ.get('SMS_DEBUG_RETURN_OTP', 'False').lower() == 'true'
 
 # --- Logging ---
 LOGGING = {

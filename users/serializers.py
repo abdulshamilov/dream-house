@@ -11,38 +11,41 @@ from .models import Referral
 User = get_user_model()
 
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
+class RegisterRequestSerializer(serializers.Serializer):
+    """First step: request registration with name and phone"""
+    phone_number = serializers.CharField(max_length=15, required=True)
+    name = serializers.CharField(max_length=100, required=True)
     ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Реферальный код (UUID) от другого пользователя")
+    
+    def validate_phone_number(self, value):
+        if User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("User with this phone number already exists")
+        return value
 
-    class Meta:
-        model = User
-        fields = ("phone_number", "password", "ref_code")
 
-    def create(self, validated_data):
-        password = validated_data.pop("password")
-        ref_code = validated_data.pop("ref_code", None)
-        
-        user = User.objects.create_user(**validated_data)
-        user.set_password(password)
-        user.save()
-        
-        # Обработать реферальный код если предоставлен
-        if ref_code:
-            try:
-                import uuid
-                # Проверяем есть ли реферал с таким кодом
-                referral = Referral.objects.get(code=ref_code)
-                # Создаем новый реферал запись
-                Referral.objects.create(
-                    referrer=referral.referrer,  # Тот кто пригласил
-                    referred=user  # Новый пользователь
-                )
-            except Referral.DoesNotExist:
-                # Код не найден, просто создаем пользователя без реферала
-                pass
-        
-        return user
+class RegisterSerializer(serializers.Serializer):
+    """Registration without password - sends OTP code"""
+    phone_number = serializers.CharField(max_length=15, required=True)
+    name = serializers.CharField(max_length=100, required=True)
+    ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Реферальный код (UUID) от другого пользователя")
+    
+    def validate_phone_number(self, value):
+        if User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("User with this phone number already exists")
+        return value
+
+
+class RegisterConfirmSerializer(serializers.Serializer):
+    """Confirm registration with OTP code - no password needed"""
+    phone_number = serializers.CharField(max_length=15, required=True)
+    otp = serializers.CharField(max_length=6, min_length=6, required=True)
+    name = serializers.CharField(max_length=100, required=True)
+    ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    
+    def validate_phone_number(self, value):
+        if User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("User with this phone number already registered")
+        return value
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -119,9 +122,21 @@ class TokenSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=False, allow_blank=True, default="")
+    profile_photo = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = ("id", "phone_number", "name", "profile_photo")
+    
+    def get_profile_photo(self, obj):
+        """Get full URL for profile photo"""
+        if obj.profile_photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.profile_photo.url)
+            return obj.profile_photo.url
+        return None
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -158,7 +173,13 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
 
 class DeleteAccountSerializer(serializers.Serializer):
-    password = serializers.CharField(write_only=True, required=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    otp = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=6, min_length=6)
+
+    def validate(self, data):
+        if not data.get('password') and not data.get('otp'):
+            raise serializers.ValidationError("Provide password or otp for account deletion")
+        return data
 
 
 class ReferralSerializer(serializers.ModelSerializer):

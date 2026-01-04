@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 # Third-party
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from rapidfuzz import fuzz
 
 # Local
 from .models import (
@@ -54,6 +55,7 @@ class CardListView(generics.ListAPIView):
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
     filter_backends = [DjangoFilterBackend]
     filterset_class = CardFilter
     pagination_class = CustomPagination
@@ -73,6 +75,7 @@ class CardFilterPostView(generics.GenericAPIView):
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -92,6 +95,7 @@ class CardDetailView(generics.RetrieveAPIView):
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -172,13 +176,21 @@ class RateCardView(generics.GenericAPIView):
         serializer = RateCardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         rating = serializer.validated_data['rating']
-        total_rating = card.rating * card.rating_count
-        card.rating_count += 1
-        card.rating = (total_rating + rating) / card.rating_count
-        card.save()
+        from .models import CardReview
+
+        review, created = CardReview.objects.get_or_create(
+            card=card,
+            user=request.user,
+            defaults={"text": "", "rating": rating}
+        )
+        if not created:
+            review.rating = rating
+            review.save(update_fields=["rating", "updated_at"])
+        card.update_rating()
+
         return Response({
-            "message": "Оценка добавлена",
-            "new_average": round(card.rating, 2),
+            "message": "Оценка сохранена",
+            "new_average": float(card.rating),
             "total_votes": card.rating_count
         })
 
@@ -371,17 +383,21 @@ class CardQuestionDetailView(generics.RetrieveAPIView):
     summary="Поиск карточек по тексту (умный поиск)",
     description="Поиск по названию, описанию и адресу. Сохраняет историю поиска авторизованных пользователей. Учит система на основе истории."
 )
-class CardSearchView(generics.ListAPIView):
+class CardSearchView(APIView):
     """Поиск квартир по текстовому запросу с умной фильтрацией и исправлением ошибок"""
-    serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+    pagination_class = CustomPagination
 
-    def _correct_query(self, query):
-        """Исправить опечатки и синонимы в запросе"""
-        from difflib import get_close_matches
+    SMART_DEFAULTS = {
+        'budget_max': 3_000_000,
+        'premium_min': 5_000_000,
+        'new_days': 180,
+        'min_similarity': 55,  # RapidFuzz score threshold
+    }
+
+    def _synonymize(self, text):
         import re
-        
-        # Словарь синонимов и исправлений
         synonyms = {
             'хорошие': 'премиум рейтинг',
             'хорошая': 'премиум рейтинг',
@@ -399,44 +415,38 @@ class CardSearchView(generics.ListAPIView):
             'апартаменты': 'квартира',
             'апарт': 'квартира',
         }
-        
-        corrected = query.lower()
-        
-        # Заменить синонимы
+        corrected = text.lower()
         for old, new in synonyms.items():
             pattern = r'\b' + old + r'\b'
             corrected = re.sub(pattern, new, corrected, flags=re.IGNORECASE)
-        
         return corrected
 
+    def _tokenize(self, text):
+        import re
+        tokens = re.findall(r"[\w\-\+]+", text.lower())
+        words = [t for t in tokens if not t.isdigit() and not t.replace('+','').isdigit()]
+        numbers = [t for t in tokens if t.isdigit() or t.replace('+','').isdigit()]
+        return words, numbers
+
     def _build_filters(self, query):
-        """Построить фильтры на основе анализа запроса"""
         from django.db.models import Q
-        
+        from django.utils import timezone
+        cfg = self.SMART_DEFAULTS
         filters = Q()
-        query_lower = query.lower()
-        
-        # Ценовые фильтры
-        if 'дешев' in query_lower or 'бюджет' in query_lower:
-            filters |= Q(price__lt=3000000)  # < 3млн
-        if 'премиум' in query_lower or 'люкс' in query_lower:
-            filters |= Q(price__gte=5000000)  # >= 5млн
-        
-        # Районы/Местоположение
-        if 'центр' in query_lower:
-            filters |= Q(city__icontains='центр') | Q(address__icontains='центр')
-        
-        # Качество/Рейтинг
-        if 'хорош' in query_lower or 'рейтинг' in query_lower:
-            filters |= Q(rating__gte=4.0)  # Рейтинг 4 звезды и выше
-        
-        # Новые предложения
-        if 'новое' in query_lower:
-            filters |= Q(created_at__year=2025)
-        
+        q = query.lower()
+        if 'дешев' in q or 'бюджет' in q:
+            filters &= Q(price__lt=cfg['budget_max'])
+        if 'премиум' in q or 'люкс' in q:
+            filters &= Q(price__gte=cfg['premium_min'])
+        if 'центр' in q:
+            filters &= Q(address__icontains='центр')
+        if 'хорош' in q or 'рейтинг' in q:
+            filters &= Q(rating__gte=4.0)
+        if 'новое' in q:
+            filters &= Q(created_at__gte=timezone.now() - timedelta(days=cfg['new_days']))
         return filters
 
-    def get_queryset(self):
+    def get(self, request, *args, **kwargs):
         from django.db.models import Q
         from django.utils import timezone
         from datetime import timedelta
@@ -445,69 +455,105 @@ class CardSearchView(generics.ListAPIView):
         query = self.request.query_params.get("q", "").strip()
         
         if not query:
-            return Card.objects.none()
+            empty_qs = Card.objects.none()
+            page = self.pagination_class().paginate_queryset(empty_qs, request, view=self)
+            return self.pagination_class().get_paginated_response([])
         
-        # Исправить ошибки и синонимы
-        corrected_query = self._correct_query(query)
+        # Синонимы и токены
+        normalized_query = self._synonymize(query)
+        tokens, numbers = self._tokenize(normalized_query)
         
         # Сохранить оригинальный поиск если пользователь авторизован
         if self.request.user.is_authenticated:
             SearchHistory.objects.create(user=self.request.user, query=query)
-        
-        # Основной поиск с исправленным запросом
-        queryset = Card.objects.filter(
-            Q(title__icontains=corrected_query) |
-            Q(description__icontains=corrected_query) |
-            Q(address__icontains=corrected_query)
-        )
-        
+
+        # Базовый queryset для фильтрации
+        queryset = Card.objects.all()
+
         # Применить умные фильтры на основе содержания запроса
-        smart_filters = self._build_filters(corrected_query)
+        smart_filters = self._build_filters(normalized_query)
         if smart_filters:
             queryset = queryset.filter(smart_filters)
-        
-        # Применить явные фильтры из параметров запроса
+
+        # Явные фильтры из параметров запроса
         price_from = self.request.query_params.get("price_from")
         price_to = self.request.query_params.get("price_to")
         city = self.request.query_params.get("city")
         rooms = self.request.query_params.get("rooms")
         building_material = self.request.query_params.get("building_material")
         rating_min = self.request.query_params.get("rating_min")
+        area_min = self.request.query_params.get("area_min")
+        area_max = self.request.query_params.get("area_max")
         
         if price_from:
             queryset = queryset.filter(price__gte=float(price_from))
         if price_to:
             queryset = queryset.filter(price__lte=float(price_to))
         if city:
-            queryset = queryset.filter(city__icontains=city)
+            try:
+                queryset = queryset.filter(city=int(city))
+            except ValueError:
+                pass
         if rooms:
-            queryset = queryset.filter(rooms=int(rooms))
+            try:
+                queryset = queryset.filter(rooms=int(rooms))
+            except ValueError:
+                pass
         if building_material:
             queryset = queryset.filter(building_material__icontains=building_material)
         if rating_min:
-            queryset = queryset.filter(rating__gte=float(rating_min))
-        
-        # Умная сортировка на основе истории поиска пользователя
-        if self.request.user.is_authenticated:
-            # Получить популярные фильтры из истории этого пользователя за последние 7 дней
-            recent_searches = SearchHistory.objects.filter(
-                user=self.request.user,
-                created_at__gte=timezone.now() - timedelta(days=7)
-            ).values_list('query', flat=True)
-            
-            # Если в поиске есть числа (цена, комнаты), отдать приоритет релевантным результатам
-            numbers = re.findall(r'\d+', corrected_query)
-            if numbers:
-                # Поднять карточки где есть эти числа в цене или комнатах
-                number_matches = queryset.filter(
-                    Q(price__icontains=numbers[0]) |
-                    (Q(rooms=int(numbers[0])) if numbers[0].isdigit() else Q())
+            try:
+                queryset = queryset.filter(rating__gte=float(rating_min))
+            except ValueError:
+                pass
+        if area_min:
+            try:
+                queryset = queryset.filter(area__gte=float(area_min))
+            except ValueError:
+                pass
+        if area_max:
+            try:
+                queryset = queryset.filter(area__lte=float(area_max))
+            except ValueError:
+                pass
+
+        # Числа из запроса → дополнительные фильтры (мягко)
+        for num in numbers:
+            try:
+                val = float(num)
+                queryset = queryset.filter(
+                    Q(price__gte=val * 0.7) & Q(price__lte=val * 1.3) |
+                    Q(rooms=int(val)) |
+                    Q(area__gte=val * 0.7, area__lte=val * 1.3)
                 )
-                if number_matches.exists():
-                    queryset = number_matches | queryset.exclude(id__in=number_matches.values_list('id', flat=True))
-        
-        # Ограничить результаты (макс 20 для избежания перегруза)
-        return queryset.order_by('-rating', '-created_at')[:20]
+            except Exception:
+                continue
+
+        # Fuzzy ранжирование по тексту
+        cards = list(queryset)
+        if not tokens:
+            tokens = [normalized_query]
+        scored = []
+        for card in cards:
+            text = " ".join(filter(None, [card.title, card.description, card.address])).lower()
+            score = 0
+            for t in tokens:
+                score += fuzz.partial_ratio(t, text)
+            # Подсветить город/тип как бонус
+            if str(card.city) in numbers:
+                score += 5
+            if card.house_type and any(t in card.house_type for t in tokens):
+                score += 5
+            if score >= self.SMART_DEFAULTS['min_similarity']:
+                scored.append((score, card))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        ordered_cards = [c for _, c in scored] if scored else cards
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(ordered_cards, request, view=self)
+        serializer = CardSerializer(page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -670,7 +716,7 @@ class CardDocumentListCreateView(generics.CreateAPIView):
 )
 class ReviewListCreateView(generics.ListCreateAPIView):
     """Список отзывов и создание нового отзыва. Автоматически обновляет рейтинг карточки."""
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     
     def get_queryset(self):
         card_id = self.kwargs.get('card_pk')

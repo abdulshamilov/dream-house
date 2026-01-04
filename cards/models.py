@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.db.models import Avg
 
 class Card(models.Model):
     CITY_CHOICES = (
@@ -101,6 +102,28 @@ class Card(models.Model):
         if self.area and self.area > 0:
             return float(self.price) / float(self.area)
         return 0
+
+    def update_rating(self):
+        """Пересчитать средний рейтинг по отзывам"""
+        avg = self.reviews.aggregate(avg_rating=Avg('rating'))['avg_rating']
+        if avg is None:
+            self.rating = 0
+            self.rating_count = 0
+        else:
+            self.rating = round(avg, 2)
+            self.rating_count = self.reviews.count()
+        self.save(update_fields=['rating', 'rating_count'])
+
+    def generate_curations(self, user=None):
+        """Сформировать простую подборку похожих карточек (по городу и типу)"""
+        from django.db.models import Q
+        import json
+
+        similar = Card.objects.filter(
+            Q(city=self.city) | Q(house_type=self.house_type)
+        ).exclude(id=self.id).order_by('-rating', '-created_at')[:5]
+        self.list_curations = json.dumps(list(similar.values_list('id', flat=True)))
+        self.save(update_fields=['list_curations'])
     
     
 class CallRequest(models.Model):

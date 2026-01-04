@@ -21,9 +21,9 @@ from .serializers import (
     CustomTokenObtainPairSerializer, PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer, TokenSerializer,
     ChangePasswordSerializer, UpdateProfileSerializer, DeleteAccountSerializer,
-    SMSRequestSerializer, SMSVerifySerializer,
+    SMSRequestSerializer, SMSVerifySerializer, RegisterConfirmSerializer,
 )
-from .models import Referral, PasswordResetOTP
+from .models import Referral, PasswordResetOTP, LoginOTP
 
 # Standard Library
 import uuid
@@ -32,21 +32,86 @@ User = get_user_model()
 
 
 class RegisterView(APIView):
+    """Step 1: Registration request with name and phone"""
     permission_classes = [AllowAny]
 
     @extend_schema(
         request=RegisterSerializer,
-        responses={201: TokenSerializer},
+        responses={200: {"detail": "OTP sent to phone", "phone_number": "string"}},
         tags=["Auth"],
-        summary="Регистрация нового пользователя и получение JWT токенов"
+        summary="Шаг 1: Регистрация - отправка кода подтверждения"
     )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
         
-        # Generate JWT tokens for newly registered user
-        from rest_framework_simplejwt.tokens import RefreshToken
+        phone_number = serializer.validated_data['phone_number']
+        name = serializer.validated_data['name']
+        
+        # Generate OTP and save registration data temporarily
+        otp = LoginOTP.generate_otp()
+        # Remove old unused OTPs for this phone
+        LoginOTP.objects.filter(phone_number=phone_number, is_used=False).delete()
+        LoginOTP.objects.create(phone_number=phone_number, otp=otp)
+        
+        # Store registration data in session/cache for confirmation step
+        # For now, return success message
+        return Response({
+            "detail": "OTP sent to your phone",
+            "phone_number": phone_number
+        }, status=200)
+
+
+class RegisterConfirmView(APIView):
+    """Step 2: Confirm registration with OTP code"""
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        request=RegisterConfirmSerializer,
+        responses={201: TokenSerializer},
+        tags=["Auth"],
+        summary="Шаг 2: Регистрация - подтверждение кода и создание аккаунта"
+    )
+    def post(self, request):
+        serializer = RegisterConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        phone_number = serializer.validated_data['phone_number']
+        otp = serializer.validated_data['otp']
+        name = serializer.validated_data['name']
+        ref_code = serializer.validated_data.get('ref_code', '')
+        
+        # Verify OTP
+        try:
+            otp_obj = LoginOTP.objects.get(phone_number=phone_number, otp=otp)
+            if not otp_obj.is_valid():
+                return Response({"detail": "OTP expired or invalid"}, status=400)
+            
+            # Mark OTP as used
+            otp_obj.is_used = True
+            otp_obj.save()
+        except LoginOTP.DoesNotExist:
+            return Response({"detail": "Invalid OTP"}, status=400)
+        
+        # Create user without password
+        user = User.objects.create_user(
+            phone_number=phone_number,
+            password=None,  # No password
+            name=name
+        )
+        
+        # Handle referral code if provided
+        if ref_code:
+            try:
+                referral = Referral.objects.get(code=ref_code)
+                Referral.objects.create(
+                    referrer=referral.referrer,
+                    referred=user
+                )
+            except Referral.DoesNotExist:
+                pass
+        
+        # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
         return Response({
@@ -65,9 +130,10 @@ class LoginView(APIView):
         summary="Вход по номеру телефона и паролю"
     )
     def post(self, request):
-        serializer = CustomTokenObtainPairSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        return Response(serializer.validated_data, status=200)
+        return Response(
+            {"detail": "Login is SMS-code only. Use /api/users/sms/request and /api/users/sms/verify"},
+            status=400
+        )
 
 
 class PasswordResetRequestView(APIView):
@@ -96,8 +162,7 @@ class PasswordResetRequestView(APIView):
         print(f"OTP for {phone_number}: {otp}")
         
         return Response({
-            "detail": "OTP sent to your phone",
-            "otp": otp  # Remove in production!
+            "detail": "OTP sent to your phone"
         }, status=200)
 
 
@@ -173,7 +238,7 @@ class MeView(APIView):
         summary="Получить информацию о текущем пользователе"
     )
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(UserSerializer(request.user, context={'request': request}).data)
 
 
 class ReferralListView(generics.ListAPIView):
@@ -265,7 +330,7 @@ class UpdateProfileView(APIView):
         logger = logging.getLogger(__name__)
         logger.info(f"User {user.phone_number} updated profile")
         
-        return Response(UserSerializer(user).data, status=200)
+        return Response(UserSerializer(user, context={'request': request}).data, status=200)
     
     @extend_schema(
         responses={200: {"detail": "Photo deleted"}},
@@ -309,14 +374,22 @@ class DeleteAccountView(APIView):
         serializer.is_valid(raise_exception=True)
         
         user = request.user
-        password = serializer.validated_data['password']
+        password = serializer.validated_data.get('password')
+        otp = serializer.validated_data.get('otp')
         
-        # Проверяем пароль
-        if not user.check_password(password):
-            return Response(
-                {"detail": "Incorrect password"},
-                status=400
-            )
+        # Проверяем пароль или OTP
+        if password:
+            if not user.check_password(password):
+                return Response({"detail": "Incorrect password"}, status=400)
+        elif otp:
+            try:
+                otp_obj = LoginOTP.objects.filter(phone_number=user.phone_number, otp=otp).latest('created_at')
+            except LoginOTP.DoesNotExist:
+                return Response({"detail": "Invalid OTP"}, status=400)
+            if not otp_obj.is_valid():
+                return Response({"detail": "OTP expired or already used"}, status=400)
+            otp_obj.is_used = True
+            otp_obj.save()
         
         phone_number = user.phone_number
         user_id = user.id
@@ -377,7 +450,7 @@ class SMSRequestView(APIView):
         
         return Response({
             "detail": "OTP sent to your phone",
-            "otp": otp if settings.DEBUG else None  # Remove in production!
+            "otp": otp if settings.SMS_DEBUG_RETURN_OTP else None
         }, status=200)
     
     def _send_sms(self, phone_number, otp):
@@ -390,6 +463,8 @@ class SMSRequestView(APIView):
             should_send_real = settings.SEND_REAL_SMS or not settings.DEBUG
             
             logger.info(f"[SMS] DEBUG={settings.DEBUG}, SEND_REAL_SMS={settings.SEND_REAL_SMS}, should_send_real={should_send_real}")
+            # Log OTP for visibility (do not enable in prod logs if security policy forbids)
+            logger.info(f"[SMS] OTP for {phone_number}: {otp}")
             
             if should_send_real:
                 # Production or test mode: use real SMS provider
@@ -410,6 +485,8 @@ class SMSRequestView(APIView):
         
         if provider == 'p1sms':
             self._send_via_p1sms(phone_number, otp, logger)
+        elif provider == 'smsru':
+            self._send_via_smsru(phone_number, otp, logger)
         elif provider == 'twilio':
             self._send_via_twilio(phone_number, otp, logger)
         elif provider == 'aws':
@@ -418,6 +495,57 @@ class SMSRequestView(APIView):
             self._send_via_smtp(phone_number, otp, logger)
         else:
             logger.warning(f"Unknown SMS provider: {provider}")
+
+    def _send_via_smsru(self, phone_number, otp, logger):
+        """Send SMS using sms.ru simple HTTP API"""
+        import requests
+        import urllib.parse
+
+        api_id = settings.SMSRU_API_ID
+        if not api_id:
+            logger.warning("sms.ru API ID not configured")
+            return
+
+        # sms.ru expects digits, typically 79XXXXXXXXX
+        digits = ''.join(c for c in phone_number if c.isdigit())
+        if digits.startswith('8'):
+            digits = '7' + digits[-10:]
+        elif digits.startswith('+7'):
+            digits = '7' + digits[-10:]
+        elif digits.startswith('7'):
+            digits = '7' + digits[-10:]
+        else:
+            # fallback: take last 10 digits and prefix 7
+            digits = '7' + digits[-10:]
+
+        text = f"Kod Dream House: {otp}. Deistvitelen 5 minut."
+
+        params = {
+            'api_id': api_id,
+            'to': digits,
+            'msg': text,
+            'json': 1,
+            'from': 'Dream House',
+        }
+
+        logger.info(f"[sms.ru] Sending SMS to {phone_number} (normalized: {digits})")
+
+        try:
+            resp = requests.get('https://sms.ru/sms/send', params=params, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info(f"[sms.ru] Response: status={data.get('status')} code={data.get('status_code')}" )
+            if data.get('status') != 'OK':
+                logger.error(f"[sms.ru] Error: {data}")
+        except requests.exceptions.Timeout:
+            logger.error(f"[sms.ru] Timeout for {phone_number}")
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[sms.ru] Request error: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"[sms.ru] Error: {str(e)}")
+            raise
     
     def _send_via_p1sms(self, phone_number, otp, logger):
         """Send SMS using p1sms (Russian SMS provider) - API v2"""
@@ -608,10 +736,9 @@ class SMSVerifyView(APIView):
         # Get or create user
         user, created = User.objects.get_or_create(phone_number=phone_number)
         
-        # If user was just created, set a random password (not used for login)
+        # If user was just created, mark password as unusable (кодовый вход)
         if created:
-            import secrets
-            user.set_password(secrets.token_urlsafe(32))
+            user.set_unusable_password()
             user.save()
         
         # Mark OTP as used
@@ -624,6 +751,6 @@ class SMSVerifyView(APIView):
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
-            'user': UserSerializer(user).data,
+            'user': UserSerializer(user, context={'request': request}).data,
             'is_new': created
         }, status=200)

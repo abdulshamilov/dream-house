@@ -3,6 +3,9 @@
 ## Текущее состояние
 
 В dev режиме (`DEBUG=True`) SMS коды печатаются в консоль и возвращаются в response для удобства тестирования.
+Дополнительно можно управлять поведением через переменные:
+- `SEND_REAL_SMS` — если `true`, отправляет реальное SMS даже при `DEBUG=True`
+- `SMS_DEBUG_RETURN_OTP` — если `true`, возвращает OTP в ответе (НЕ включать в прод)
 
 ## Подключение реального SMS провайдера
 
@@ -12,6 +15,7 @@
 - **Twilio** - популярный, надёжный, есть free tier
 - **AWS SNS** - если уже используешь AWS
 - **Email-to-SMS** - для российских операторов (MTS, Beeline, Megafon, Rostelecom)
+- **sms.ru** - российский провайдер, простой HTTP API
 
 ### Шаг 2: Настроить переменные окружения
 
@@ -49,6 +53,14 @@ pip install boto3
 ```bash
 SMS_PROVIDER=smtp
 SMS_CARRIER=mts  # или beeline, megafon, rostelecom
+```
+
+#### Вариант 4: sms.ru
+
+```bash
+SMS_PROVIDER=smsru
+SMSRU_API_ID=your_smsru_api_id
+# Опционально: FROM алфанумерик, если одобрен
 ```
 
 ### Шаг 3: Обновить `requirements.txt`
