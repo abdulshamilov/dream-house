@@ -1,5 +1,6 @@
 # DRF
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 # Local
 from .models import (
@@ -29,6 +30,7 @@ class DeveloperInCardSerializer(serializers.ModelSerializer):
         model = Developer
         fields = ['id', 'name', 'logo', 'is_subscribed']
     
+    @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):
         """Проверить, подписан ли текущий пользователь на этого застройщика"""
         request = self.context.get('request')
@@ -64,12 +66,14 @@ class CardCurationSerializer(serializers.ModelSerializer):
             'rooms', 'area', 'city', 'rating', 'developer', 'is_favorite'
         ]
     
+    @extend_schema_field(serializers.BooleanField)
     def get_is_favorite(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Favorite.objects.filter(user=request.user, card=obj).exists()
         return False
     
+    @extend_schema_field(serializers.FloatField)
     def get_price_metr(self, obj):
         """Получить цену за квадратный метр"""
         return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
@@ -94,6 +98,7 @@ class CardDocumentListSerializer(serializers.ModelSerializer):
         model = CardDocumentList
         fields = ['id', 'name', 'files']
     
+    @extend_schema_field(CardDocumentSerializer(many=True))
     def get_files(self, obj):
         """Получить все файлы в этой подборке"""
         files = obj.files.all()  # Используем related_name 'files'
@@ -137,16 +142,19 @@ class CardSerializer(serializers.ModelSerializer):
             'is_favorite'
         ]
     
+    @extend_schema_field(serializers.FloatField)
     def get_price_metr(self, obj):
         """Получить цену за квадратный метр"""
         return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
 
+    @extend_schema_field(serializers.BooleanField)
     def get_is_favorite(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Favorite.objects.filter(user=request.user, card=obj).exists()
         return False
     
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
     def get_list_curations(self, obj):
         """Получить рекомендуемые карточки из list_curations"""
         import json
@@ -195,10 +203,12 @@ class CardReviewSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'text', 'rating', 'likes_count', 'is_liked', 'created_at', 'updated_at']
         read_only_fields = ['likes_count', 'is_liked']
     
+    @extend_schema_field(serializers.IntegerField)
     def get_likes_count(self, obj):
         """Получить количество лайков"""
         return obj.likes_count
     
+    @extend_schema_field(serializers.BooleanField)
     def get_is_liked(self, obj):
         """Проверить лайкнул ли текущий пользователь этот отзыв"""
         request = self.context.get('request')

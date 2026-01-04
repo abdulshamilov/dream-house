@@ -127,6 +127,7 @@ class FavoriteAPIView(generics.GenericAPIView):
     """Управление избранными карточками пользователя"""
     queryset = Card.objects.all()
     permission_classes = [IsAuthenticated]
+    serializer_class = FavoriteSerializer
 
     def post(self, request, pk):
         card = get_object_or_404(Card, pk=pk)
@@ -152,6 +153,8 @@ class MyFavoritesListAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Favorite.objects.none()
         return Favorite.objects.filter(user=self.request.user).select_related('card')
 
     def get_serializer_context(self):
@@ -322,6 +325,7 @@ class ReviewLikeView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     lookup_field = 'id'
     lookup_url_kwarg = 'review_id'
+    serializer_class = CardReviewSerializer
     
     def get_object(self):
         review_id = self.kwargs.get(self.lookup_url_kwarg)
@@ -388,6 +392,7 @@ class CardSearchView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
     pagination_class = CustomPagination
+    serializer_class = CardSerializer
 
     SMART_DEFAULTS = {
         'budget_max': 3_000_000,
@@ -568,6 +573,10 @@ class CardSearchView(APIView):
 class CardViewHistoryView(generics.CreateAPIView):
     """Сохранение истории просмотров квартир пользователем"""
     permission_classes = [IsAuthenticated]
+    class _HistorySerializer(serializers.Serializer):
+        duration_seconds = serializers.IntegerField(required=False, default=0)
+
+    serializer_class = _HistorySerializer
     
     def create(self, request, *args, **kwargs):
         from .models import ViewHistory
@@ -602,6 +611,9 @@ class UserViewHistoryListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            from .models import ViewHistory
+            return ViewHistory.objects.none()
         from .models import ViewHistory
         return ViewHistory.objects.filter(user=self.request.user).order_by('-viewed_at')
     
@@ -619,6 +631,8 @@ class SearchHistoryView(generics.ListAPIView, generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return SearchHistory.objects.none()
         from django.db.models import Count
         from django.utils import timezone
         from datetime import timedelta
@@ -821,6 +835,8 @@ class PersonalRecommendationsView(generics.ListAPIView):
     pagination_class = CustomPagination
     
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
         user = self.request.user
         
         # Получить города и типы домов просмотренных карточек
@@ -873,6 +889,8 @@ class RecentlyViewedView(generics.ListAPIView):
     pagination_class = CustomPagination
     
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
         user = self.request.user
         # Получить последние 4 просмотренные карточки
         recent_views = ViewHistory.objects.filter(user=user).order_by('-viewed_at').values_list('card_id', flat=True)[:4]

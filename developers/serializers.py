@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import Developer, Subscription
 from cards.serializers import CardSerializer
 
@@ -10,6 +11,7 @@ class DeveloperSerializer(serializers.ModelSerializer):
         model = Developer
         fields = ['id', 'name', 'logo', 'cards', 'is_subscribed']
 
+    @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):
         user = self.context.get('request').user
         if user.is_authenticated:

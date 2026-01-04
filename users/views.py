@@ -19,7 +19,7 @@ from django.conf import settings
 from .serializers import (
     RegisterSerializer, UserSerializer, ReferralSerializer, 
     CustomTokenObtainPairSerializer, PasswordResetRequestSerializer,
-    PasswordResetConfirmSerializer, TokenSerializer,
+    PasswordResetConfirmSerializer, TokenSerializer, ReferralLinkSerializer,
     ChangePasswordSerializer, UpdateProfileSerializer, DeleteAccountSerializer,
     SMSRequestSerializer, SMSVerifySerializer, RegisterConfirmSerializer,
 )
@@ -218,7 +218,10 @@ class PasswordResetConfirmView(APIView):
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
+    serializer_class = None  # For schema tooling
+
     @extend_schema(
+        request=None,
         responses={200: {"detail": "Logged out"}},
         tags=["Auth"],
         summary="Выход из аккаунта (разорвать JWT сессию)"
@@ -246,16 +249,25 @@ class ReferralListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Referral.objects.none()
         return Referral.objects.filter(referrer=self.request.user)
     
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_referral_link(request):
-    user = request.user
-    code = str(uuid.uuid4())
-    link = f"https://dreamhouse05.com/register/?ref={code}"
-    return Response({"referral_link": link})
+class ReferralLinkView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ReferralLinkSerializer
+
+    @extend_schema(
+        request=None,
+        responses=ReferralLinkSerializer,
+        tags=["User"],
+        summary="Получить реферальную ссылку",
+    )
+    def get(self, request):
+        code = str(uuid.uuid4())
+        link = f"https://dreamhouse05.com/register/?ref={code}"
+        return Response({"referral_link": link})
 
 
 class ChangePasswordView(APIView):

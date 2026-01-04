@@ -121,6 +121,10 @@ class TokenSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
 
+class ReferralLinkSerializer(serializers.Serializer):
+    referral_link = serializers.CharField()
+
+
 class UserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False, allow_blank=True, default="")
     profile_photo = serializers.SerializerMethodField()
@@ -129,7 +133,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "phone_number", "name", "profile_photo")
     
-    def get_profile_photo(self, obj):
+    def get_profile_photo(self, obj) -> str:
         """Get full URL for profile photo"""
         if obj.profile_photo:
             request = self.context.get('request')

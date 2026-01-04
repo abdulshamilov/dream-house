@@ -39,6 +39,8 @@ class UserDiscountRequestsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return DiscountRequest.objects.none()
         return DiscountRequest.objects.filter(user=self.request.user)
 
 
@@ -52,6 +54,8 @@ class GetRecommendationsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
         from .models import Favorite, ViewHistory
         
         user = self.request.user
@@ -142,6 +146,8 @@ class ChatHistoryView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ChatMessage.objects.none()
         # Возвращаем последние 5 сообщений
         return ChatMessage.objects.filter(user=self.request.user).order_by('-created_at')[:5]
 

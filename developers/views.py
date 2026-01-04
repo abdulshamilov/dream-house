@@ -12,6 +12,7 @@ from cards.serializers import CardSerializer
 # 🔹 Подписка / отписка через один endpoint
 class SubscribeAPIView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = SubscriptionSerializer  # for schema generation
 
     @extend_schema(
         summary="Подписка на застройщика",
@@ -50,6 +51,8 @@ class MySubscriptionsAPIView(generics.ListAPIView):
         description="Возвращает всех застройщиков, на которых подписан текущий пользователь."
     )
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Subscription.objects.none()
         return Subscription.objects.filter(user=self.request.user)
 
 # 🔹 Остальные стандартные view
@@ -60,6 +63,8 @@ class DeveloperListAPIView(generics.ListAPIView):
 class DeveloperCardsAPIView(generics.ListAPIView):
     serializer_class = CardSerializer
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Card.objects.none()
         developer_id = self.kwargs['developer_id']
         return Card.objects.filter(developer_id=developer_id).select_related('owner').prefetch_related('images')
 
