@@ -1,6 +1,7 @@
 # Django
 from django.shortcuts import get_object_or_404
-from django.db.models import Q, Count
+from django.db import connection
+from django.db.models import Q, Count, F
 from django.utils import timezone
 from datetime import timedelta
 
@@ -13,6 +14,7 @@ from rest_framework.views import APIView
 # Third-party
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank, TrigramSimilarity
 from rapidfuzz import fuzz
 
 # Local
@@ -527,14 +529,46 @@ class CardSearchView(APIView):
             try:
                 val = float(num)
                 queryset = queryset.filter(
-                    Q(price__gte=val * 0.7) & Q(price__lte=val * 1.3) |
-                    Q(rooms=int(val)) |
-                    Q(area__gte=val * 0.7, area__lte=val * 1.3)
+                    Q(price__gte=val * 0.7, price__lte=val * 1.3)
+                    | Q(rooms=int(val))
+                    | Q(area__gte=val * 0.7, area__lte=val * 1.3)
                 )
             except Exception:
                 continue
 
-        # Fuzzy ранжирование по тексту
+        # Попытаться использовать Postgres FTS + триграммы + precomputed search_vector
+        pg_queryset = None
+        if connection.vendor == "postgresql":
+            try:
+                search_query = SearchQuery(normalized_query, search_type='websearch')
+                pg_queryset = queryset.annotate(
+                    # use generated column when present, else compute on the fly
+                    rank=SearchRank(F('search_vector'), search_query)
+                    if 'search_vector' in [f.name for f in Card._meta.fields]
+                    else SearchRank(
+                        SearchVector('title', weight='A') +
+                        SearchVector('address', weight='B') +
+                        SearchVector('description', weight='C'),
+                        search_query,
+                    ),
+                    trigram=TrigramSimilarity('title', normalized_query) + TrigramSimilarity('address', normalized_query),
+                ).filter(
+                    Q(rank__gt=0) | Q(trigram__gte=0.15)
+                ).order_by('-rank', '-trigram', '-rating', '-created_at')
+
+                # Пустой результат → использовать fallback ниже
+                if not pg_queryset.exists():
+                    pg_queryset = None
+            except Exception:
+                pg_queryset = None
+
+        if pg_queryset is not None:
+            paginator = self.pagination_class()
+            page = paginator.paginate_queryset(pg_queryset, request, view=self)
+            serializer = CardSerializer(page, many=True, context={'request': request})
+            return paginator.get_paginated_response(serializer.data)
+
+        # Fuzzy ранжирование по тексту (fallback для SQLite или при ошибке)
         cards = list(queryset)
         if not tokens:
             tokens = [normalized_query]
