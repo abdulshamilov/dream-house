@@ -63,7 +63,8 @@ class CardCurationSerializer(serializers.ModelSerializer):
         model = Card
         fields = [
             'id', 'title', 'address', 'price', 'price_metr',  # 🔑 НОВОЕ: Цена за кв.м
-            'rooms', 'area', 'city', 'rating', 'developer', 'is_favorite'
+            'rooms', 'area', 'city', 'rating', 'developer', 'is_favorite',
+            'latitude', 'longitude'
         ]
     
     @extend_schema_field(serializers.BooleanField)

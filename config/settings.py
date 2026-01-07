@@ -8,7 +8,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Security ---
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "replace_me_in_prod")
-DEBUG = True  # Для разработки; отключить в production
+DEBUG = False
+
 ALLOWED_HOSTS = [
     'dreamhouse05.com',
     'www.dreamhouse05.com',
@@ -29,6 +30,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.postgres',
 
+    'corsheaders',
+
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
@@ -38,12 +41,13 @@ INSTALLED_APPS = [
     'cards',
     'developers',
     'notifications',
-    
 ]
 
 # --- Middleware ---
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,7 +81,7 @@ TEMPLATES = [
 ]
 
 # --- Database ---
-# Defaults to SQLite for local dev; switches to Postgres when POSTGRES_DB is set
+# По умолчанию SQLite для локалки; при наличии POSTGRES_DB переключаемся на Postgres
 POSTGRES_DB = os.environ.get('POSTGRES_DB')
 
 if POSTGRES_DB:
@@ -108,31 +112,42 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
-    'DEFAULT_FILTER_BACKENDS': (
-        'django_filters.rest_framework.DjangoFilterBackend',
-    ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,  # Количество по умолчанию
+    'PAGE_SIZE': 10,
 }
 
-# --- Swagger / Spectacular ---
+# --- Swagger ---
 SPECTACULAR_SETTINGS = {
     "TITLE": "API FOR Dream House",
     "DESCRIPTION": "API для Dream House",
     "VERSION": "1.0.0",
-    "SERVE_INCLUDE_SCHEMA": DEBUG,
-    "SWAGGER_UI_SETTINGS": {
-        "deepLinking": True,
-        "persistAuthorization": True,
-        "displayRequestDuration": True,
-    },
+    "SERVE_INCLUDE_SCHEMA": True,
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
 }
+
+# --- CORS ---
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type',
+    'accept',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost",
+    "https://dreamhouse05.com",
+    "https://www.dreamhouse05.com",
+    "https://api.dreamhouse05.com",
+    "https://admin.dreamhouse05.com",
 ]
 
 # --- Password validation ---
@@ -145,7 +160,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     'users.backends.PhoneBackend',
-    'django.contrib.auth.backends.ModelBackend',  # Default backend for admin
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 # --- Localization ---
@@ -154,12 +169,13 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# --- Static files ---
+# --- Static / Media ---
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'static'  # ВАЖНО: 'staticfiles'
+STATIC_ROOT = BASE_DIR / 'static'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-# --- Default primary key ---
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- JWT ---
@@ -168,45 +184,27 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-# --- SMS Configuration ---
-# Defaults now set to sms.ru so провайдер будет выбран без env
+# --- SMS ---
 SMS_PROVIDER = os.environ.get('SMS_PROVIDER', 'smsru')
 P1SMS_API_KEY = os.environ.get('P1SMS_API_KEY', '')
-SMSRU_API_ID = os.environ.get('SMSRU_API_ID', '73CF6BC6-704B-5E02-91A4-0E762C179A22')
-# Force real SMS only when explicitly enabled
+SMSRU_API_ID = os.environ.get(
+    'SMSRU_API_ID',
+    '73CF6BC6-704B-5E02-91A4-0E762C179A22'
+)
 SEND_REAL_SMS = os.environ.get('SEND_REAL_SMS', 'False').lower() == 'true'
-# Allow returning OTP in response for easier manual testing (never enable in prod)
 SMS_DEBUG_RETURN_OTP = os.environ.get('SMS_DEBUG_RETURN_OTP', 'False').lower() == 'true'
 
 # --- Logging ---
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
         },
     },
     'root': {
         'handlers': ['console'],
         'level': 'INFO',
-    },
-    'loggers': {
-        'users.views': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
     },
 }
