@@ -401,6 +401,7 @@ class CardSearchView(APIView):
         'premium_min': 5_000_000,
         'new_days': 180,
         'min_similarity': 55,  # RapidFuzz score threshold
+        'fuzzy_eval_limit': 400,  # Максимум карточек для расчёта fuzzy (чтобы не грузить БД/CPU)
     }
 
     def _synonymize(self, text):
@@ -452,6 +453,20 @@ class CardSearchView(APIView):
         if 'новое' in q:
             filters &= Q(created_at__gte=timezone.now() - timedelta(days=cfg['new_days']))
         return filters
+
+    def _prefilter_text(self, queryset, tokens):
+        """Мягкий префильтр по токенам, чтобы сузить выборку перед ранжированием."""
+        from django.db.models import Q
+        if not tokens:
+            return queryset
+        q = Q()
+        for t in tokens:
+            q |= (
+                Q(title__icontains=t)
+                | Q(address__icontains=t)
+                | Q(description__icontains=t)
+            )
+        return queryset.filter(q) if q else queryset
 
     def get(self, request, *args, **kwargs):
         from django.db.models import Q
@@ -524,6 +539,9 @@ class CardSearchView(APIView):
             except ValueError:
                 pass
 
+        # Префильтр по тексту, чтобы уменьшить объём fuzzy-обработки
+        queryset = self._prefilter_text(queryset, tokens)
+
         # Числа из запроса → дополнительные фильтры (мягко)
         for num in numbers:
             try:
@@ -569,7 +587,7 @@ class CardSearchView(APIView):
             return paginator.get_paginated_response(serializer.data)
 
         # Fuzzy ранжирование по тексту (fallback для SQLite или при ошибке)
-        cards = list(queryset)
+        cards = list(queryset[: self.SMART_DEFAULTS['fuzzy_eval_limit']])
         if not tokens:
             tokens = [normalized_query]
         scored = []
@@ -587,7 +605,15 @@ class CardSearchView(APIView):
                 scored.append((score, card))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        ordered_cards = [c for _, c in scored] if scored else cards
+
+        # Если ни одна карточка не прошла порог схожести → вернуть пустой результат,
+        # иначе используем отсортированные по score карточки.
+        if not scored:
+            paginator = self.pagination_class()
+            paginator.paginate_queryset([], request, view=self)
+            return paginator.get_paginated_response([])
+
+        ordered_cards = [c for _, c in scored]
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(ordered_cards, request, view=self)

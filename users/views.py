@@ -17,11 +17,11 @@ from django.conf import settings
 
 # Local
 from .serializers import (
-    RegisterSerializer, UserSerializer, ReferralSerializer, 
+    RegisterRequestSerializer, RegisterConfirmSerializer, UserSerializer, ReferralSerializer,
     CustomTokenObtainPairSerializer, PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer, TokenSerializer, ReferralLinkSerializer,
     ChangePasswordSerializer, UpdateProfileSerializer, DeleteAccountSerializer,
-    SMSRequestSerializer, SMSVerifySerializer, RegisterConfirmSerializer,
+    SMSRequestSerializer, SMSVerifySerializer,
 )
 from .models import Referral, PasswordResetOTP, LoginOTP
 
@@ -32,21 +32,20 @@ User = get_user_model()
 
 
 class RegisterView(APIView):
-    """Step 1: Registration request with name and phone"""
+    """Step 1: Registration request with phone only (без имени)"""
     permission_classes = [AllowAny]
 
     @extend_schema(
-        request=RegisterSerializer,
+        request=RegisterRequestSerializer,
         responses={200: {"detail": "OTP sent to phone", "phone_number": "string"}},
         tags=["Auth"],
         summary="Шаг 1: Регистрация - отправка кода подтверждения"
     )
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
+        serializer = RegisterRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         phone_number = serializer.validated_data['phone_number']
-        name = serializer.validated_data['name']
         
         # Generate OTP and save registration data temporarily
         otp = LoginOTP.generate_otp()
@@ -97,19 +96,14 @@ class RegisterConfirmView(APIView):
         user = User.objects.create_user(
             phone_number=phone_number,
             password=None,  # No password
-            name=name
+            name=name,
         )
         
-        # Handle referral code if provided
+        # Handle referral code if provided: find referrer by their referral_code
         if ref_code:
-            try:
-                referral = Referral.objects.get(code=ref_code)
-                Referral.objects.create(
-                    referrer=referral.referrer,
-                    referred=user
-                )
-            except Referral.DoesNotExist:
-                pass
+            referrer = User.objects.filter(referral_code=ref_code).first()
+            if referrer:
+                Referral.objects.create(referrer=referrer, referred=user)
         
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
@@ -265,8 +259,12 @@ class ReferralLinkView(APIView):
         summary="Получить реферальную ссылку",
     )
     def get(self, request):
-        code = str(uuid.uuid4())
-        link = f"https://dreamhouse05.com/register/?ref={code}"
+        # Ensure the user has a persistent referral code
+        if not request.user.referral_code:
+            request.user.referral_code = uuid.uuid4()
+            request.user.save(update_fields=["referral_code"])
+
+        link = f"https://dreamhouse05.com/register/?ref={request.user.referral_code}"
         return Response({"referral_link": link})
 
 

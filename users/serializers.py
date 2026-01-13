@@ -12,21 +12,8 @@ User = get_user_model()
 
 
 class RegisterRequestSerializer(serializers.Serializer):
-    """First step: request registration with name and phone"""
+    """First step: request registration with phone only (без имени на шаге получения кода)"""
     phone_number = serializers.CharField(max_length=15, required=True)
-    name = serializers.CharField(max_length=100, required=True)
-    ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Реферальный код (UUID) от другого пользователя")
-    
-    def validate_phone_number(self, value):
-        if User.objects.filter(phone_number=value).exists():
-            raise serializers.ValidationError("User with this phone number already exists")
-        return value
-
-
-class RegisterSerializer(serializers.Serializer):
-    """Registration without password - sends OTP code"""
-    phone_number = serializers.CharField(max_length=15, required=True)
-    name = serializers.CharField(max_length=100, required=True)
     ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Реферальный код (UUID) от другого пользователя")
     
     def validate_phone_number(self, value):

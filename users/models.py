@@ -28,12 +28,14 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=15, unique=True)
     name = models.CharField(max_length=50, blank=True, null=True)
+
     profile_photo = models.ImageField(
         upload_to='users/profiles/', 
         blank=True, 
         null=True,
         help_text="Фото профиля (JPEG, PNG, GIF). Максимальный размер: 5MB"
     )
+    referral_code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

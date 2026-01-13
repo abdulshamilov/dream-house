@@ -1,11 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import User
 from django import forms
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 
-# --- Форма для создания нового пользователя ---
+from .models import User
+
+
+# ---------- Форма создания пользователя ----------
 class UserCreationForm(forms.ModelForm):
     password1 = forms.CharField(label='Пароль', widget=forms.PasswordInput)
     password2 = forms.CharField(label='Подтверждение пароля', widget=forms.PasswordInput)
@@ -15,11 +17,11 @@ class UserCreationForm(forms.ModelForm):
         fields = ('phone_number', 'name')
 
     def clean_password2(self):
-        pw1 = self.cleaned_data.get("password1")
-        pw2 = self.cleaned_data.get("password2")
-        if pw1 and pw2 and pw1 != pw2:
+        password1 = self.cleaned_data.get("password1")
+        password2 = self.cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Пароли не совпадают")
-        return pw2
+        return password2
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -28,35 +30,70 @@ class UserCreationForm(forms.ModelForm):
             user.save()
         return user
 
-# --- Форма для редактирования существующего пользователя ---
+
+# ---------- Форма изменения пользователя ----------
 class UserChangeForm(forms.ModelForm):
-    password = ReadOnlyPasswordHashField()
+    password = ReadOnlyPasswordHashField(label="Пароль")
 
     class Meta:
         model = User
-        fields = ('phone_number', 'name', 'password', 'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')
+        fields = (
+            'phone_number',
+            'name',
+            'password',
+            'is_active',
+            'is_staff',
+            'is_superuser',
+            'groups',
+            'user_permissions',
+        )
 
 
-# --- Админка ---
+# ---------- Админка ----------
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
 
-    list_display = ('phone_number', 'name', 'is_staff', 'is_active', 'is_superuser')
+    list_display = (
+        'phone_number',
+        'name',
+        'is_staff',
+        'is_active',
+    )
+
     list_filter = ('is_staff', 'is_active', 'is_superuser')
 
     fieldsets = (
         (None, {'fields': ('phone_number', 'password')}),
-        (_('Personal info'), {'fields': ('name', 'profile_photo')}),
-        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        (_('Personal info'), {
+            'fields': ('name', 'profile_photo')
+        }),
+        (_('Permissions'), {
+            'fields': (
+                'is_active',
+                'is_staff',
+                'is_superuser',
+                'groups',
+                'user_permissions',
+            )
+        }),
         (_('Important dates'), {'fields': ('last_login',)}),
     )
 
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('phone_number', 'name', 'profile_photo', 'password1', 'password2', 'is_active', 'is_staff', 'is_superuser'),
+            'fields': (
+                'phone_number',
+                'name',
+                'profile_photo',
+                'password1',
+                'password2',
+                'is_active',
+                'is_staff',
+                'is_superuser',
+            ),
         }),
     )
 
