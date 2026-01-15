@@ -32,8 +32,10 @@ class DeveloperInCardSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):
-        """Проверить, подписан ли текущий пользователь на этого застройщика"""
-        request = self.context.get('request')
+        annotated = getattr(obj, 'is_subscribed', None)
+        if annotated is not None:
+            return bool(annotated)
+        request = self.context.get('request') if self.context else None
         if request and request.user and request.user.is_authenticated:
             from developers.models import Subscription
             return Subscription.objects.filter(
@@ -196,6 +198,7 @@ class CallRequestSerializer(serializers.ModelSerializer):
 
 class CardReviewSerializer(serializers.ModelSerializer):
     user = UserSimpleSerializer(read_only=True)
+    rating = serializers.IntegerField(min_value=1, max_value=5)
     likes_count = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Количество лайков
     is_liked = serializers.SerializerMethodField()     # 🔑 НОВОЕ: Лайкнул ли текущий пользователь
     
@@ -220,6 +223,7 @@ class CardReviewSerializer(serializers.ModelSerializer):
 
 class CardQuestionSerializer(serializers.ModelSerializer):
     user = UserSimpleSerializer(read_only=True)
+    answer = serializers.CharField(read_only=True)
     class Meta:
         model = CardQuestion
         fields = ['id', 'user', 'question', 'answer', 'created_at']
@@ -321,6 +325,8 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 
 class ReviewCreateUpdateSerializer(serializers.ModelSerializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+
     class Meta:
         model = CardReview
         fields = ['rating', 'text']

@@ -250,7 +250,10 @@ class CardReviewCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         card = Card.objects.get(pk=self.kwargs.get('pk'))
-        serializer.save(card=card, user=self.request.user)
+        if CardReview.objects.filter(card=card, user=self.request.user).exists():
+            raise serializers.ValidationError({"detail": "Вы уже оставляли отзыв на эту карточку"})
+        review = serializer.save(card=card, user=self.request.user)
+        card.update_rating()
 
 # -------------------------------
 @extend_schema(
@@ -296,13 +299,24 @@ class CardQuestionCreateView(generics.CreateAPIView):
 class CardQuestionAnswerView(generics.UpdateAPIView):
     """Добавление ответа на вопрос о квартире"""
     queryset = CardQuestion.objects.all()
-    serializer_class = CardQuestionSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        class AnswerSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = CardQuestion
+                fields = ['answer']
+        return AnswerSerializer
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
         serializer.save(answer=self.request.data.get('answer'))
+
+    def check_object_permissions(self, request, obj):
+        if not (request.user.is_staff or obj.card.owner_id == request.user.id):
+            self.permission_denied(request, message="Только владелец карточки или администратор может отвечать")
+        super().check_object_permissions(request, obj)
 
 # 9. Детали отзывов/вопросов
 # -------------------------------
@@ -806,8 +820,9 @@ class ReviewListCreateView(generics.ListCreateAPIView):
         from .models import CardReview
         card_id = self.kwargs.get('card_pk')
         card = get_object_or_404(Card, id=card_id)
+        if CardReview.objects.filter(card=card, user=self.request.user).exists():
+            raise serializers.ValidationError({"detail": "Вы уже оставляли отзыв на эту карточку"})
         review = serializer.save(user=self.request.user, card=card)
-        # Обновляем рейтинг карточки
         card.update_rating()
 
 

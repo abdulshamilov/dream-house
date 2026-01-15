@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 
 from .models import Developer, Subscription
-from .serializers import DeveloperSerializer, SubscriptionSerializer
+from .serializers import DeveloperSerializer, SubscriptionSerializer, SubscriptionListSerializer
 from cards.models import Card
 from cards.serializers import CardSerializer
 
@@ -19,7 +19,7 @@ class SubscribeAPIView(generics.GenericAPIView):
         description="POST — подписка, DELETE — отписка. Возвращает сообщение и код состояния.",
         responses={
             201: {"application/json": {"example": {"detail": "Подписка оформлена"}}},
-            204: {"application/json": {"example": {"detail": "Подписка отменена"}}},
+            200: {"application/json": {"example": {"detail": "Подписка отменена"}}},
             400: {"application/json": {"example": {"detail": "Уже подписан"}}},
         }
     )
@@ -38,13 +38,13 @@ class SubscribeAPIView(generics.GenericAPIView):
         developer = get_object_or_404(Developer, id=developer_id)
         deleted, _ = Subscription.objects.filter(user=request.user, developer=developer).delete()
         if deleted:
-            return Response({'detail': 'Подписка отменена'}, status=204)
+            return Response({'detail': 'Подписка отменена'}, status=200)
         return Response({'detail': 'Вы не были подписаны'}, status=400)
 
 # 🔹 Список своих подписок
 class MySubscriptionsAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = SubscriptionSerializer
+    serializer_class = SubscriptionListSerializer
 
     @extend_schema(
         summary="Список моих подписок",
@@ -53,12 +53,23 @@ class MySubscriptionsAPIView(generics.ListAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Subscription.objects.none()
-        return Subscription.objects.filter(user=self.request.user)
+        return Subscription.objects.filter(user=self.request.user).select_related('developer').order_by('-created_at')
 
 # 🔹 Остальные стандартные view
 class DeveloperListAPIView(generics.ListAPIView):
-    queryset = Developer.objects.all()
     serializer_class = DeveloperSerializer
+
+    def get_queryset(self):
+        qs = Developer.objects.all()
+        user = getattr(self.request, 'user', None)
+        if user and user.is_authenticated:
+            from django.db.models import Exists, OuterRef
+            qs = qs.annotate(
+                is_subscribed=Exists(
+                    Subscription.objects.filter(user=user, developer_id=OuterRef('pk'))
+                )
+            )
+        return qs
 
 class DeveloperCardsAPIView(generics.ListAPIView):
     serializer_class = CardSerializer
@@ -69,19 +80,21 @@ class DeveloperCardsAPIView(generics.ListAPIView):
         return Card.objects.filter(developer_id=developer_id).select_related('owner').prefetch_related('images')
 
 class DeveloperDetailView(generics.RetrieveAPIView):
-    queryset = Developer.objects.all()
     serializer_class = DeveloperSerializer
+    queryset = Developer.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
         developer = self.get_object()
+
+        # Аннотация is_subscribed для точного флага
+        if request.user.is_authenticated:
+            developer.is_subscribed = Subscription.objects.filter(user=request.user, developer=developer).exists()
+        else:
+            developer.is_subscribed = False
+
         data = DeveloperSerializer(developer, context={'request': request}).data
 
         cards = Card.objects.filter(developer=developer).select_related('owner').prefetch_related('images')
         data['cards'] = CardSerializer(cards, many=True, context={'request': request}).data
-
-        if request.user.is_authenticated:
-            data['is_subscribed'] = Subscription.objects.filter(user=request.user, developer=developer).exists()
-        else:
-            data['is_subscribed'] = False
 
         return Response(data)
