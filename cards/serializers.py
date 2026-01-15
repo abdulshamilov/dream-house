@@ -32,16 +32,11 @@ class DeveloperInCardSerializer(serializers.ModelSerializer):
     
     @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):
-        annotated = getattr(obj, 'is_subscribed', None)
-        if annotated is not None:
-            return bool(annotated)
         request = self.context.get('request') if self.context else None
-        if request and request.user and request.user.is_authenticated:
+        user = getattr(request, 'user', None) if request else None
+        if user and user.is_authenticated:
             from developers.models import Subscription
-            return Subscription.objects.filter(
-                user=request.user,
-                developer=obj
-            ).exists()
+            return Subscription.objects.filter(user=user, developer=obj).exists()
         return False 
 
 

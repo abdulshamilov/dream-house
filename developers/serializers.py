@@ -20,11 +20,6 @@ class DeveloperSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):
-        # Если queryset аннотирован полем is_subscribed, используем его
-        annotated = getattr(obj, 'is_subscribed', None)
-        if annotated is not None:
-            return bool(annotated)
-
         req = self.context.get('request') if self.context else None
         user = getattr(req, 'user', None)
         if user and user.is_authenticated:

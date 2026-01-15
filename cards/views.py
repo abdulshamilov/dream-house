@@ -57,7 +57,6 @@ class CardListView(generics.ListAPIView):
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
-    authentication_classes = []
     filter_backends = [DjangoFilterBackend]
     filterset_class = CardFilter
     pagination_class = CustomPagination
@@ -77,7 +76,6 @@ class CardFilterPostView(generics.GenericAPIView):
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
-    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -97,7 +95,6 @@ class CardDetailView(generics.RetrieveAPIView):
     queryset = Card.objects.all()
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
-    authentication_classes = []
 
     def get_serializer_context(self):
         return {'request': self.request}
@@ -406,7 +403,6 @@ class CardQuestionDetailView(generics.RetrieveAPIView):
 class CardSearchView(APIView):
     """Поиск квартир по текстовому запросу с умной фильтрацией и исправлением ошибок"""
     permission_classes = [permissions.AllowAny]
-    authentication_classes = []
     pagination_class = CustomPagination
     serializer_class = CardSerializer
 

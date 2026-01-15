@@ -83,14 +83,21 @@ class DeveloperDetailView(generics.RetrieveAPIView):
     serializer_class = DeveloperSerializer
     queryset = Developer.objects.all()
 
+    def get_queryset(self):
+        qs = Developer.objects.all()
+        user = getattr(self, 'request', None)
+        user = getattr(user, 'user', None)
+        if user and user.is_authenticated:
+            from django.db.models import Exists, OuterRef
+            qs = qs.annotate(
+                is_subscribed=Exists(
+                    Subscription.objects.filter(user=user, developer_id=OuterRef('pk'))
+                )
+            )
+        return qs
+
     def retrieve(self, request, *args, **kwargs):
         developer = self.get_object()
-
-        # Аннотация is_subscribed для точного флага
-        if request.user.is_authenticated:
-            developer.is_subscribed = Subscription.objects.filter(user=request.user, developer=developer).exists()
-        else:
-            developer.is_subscribed = False
 
         data = DeveloperSerializer(developer, context={'request': request}).data
 
