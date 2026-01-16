@@ -19,6 +19,15 @@ class UserSimpleSerializer(serializers.Serializer):
     phone_number = serializers.CharField(read_only=True)
     profile_photo = serializers.ImageField(read_only=True)
 
+
+class CardQuestionSerializer(serializers.ModelSerializer):
+    user = UserSimpleSerializer(read_only=True)
+    answer = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = CardQuestion
+        fields = ['id', 'user', 'question', 'answer', 'created_at']
+
 # -------------------------------
 # 🔑 НОВЫЙ: Сериализатор для Застройщика (для вложения)
 # -------------------------------
@@ -113,7 +122,7 @@ class CardSerializer(serializers.ModelSerializer):
     document_lists = CardDocumentListSerializer(many=True, read_only=True)  # 🔑 НОВОЕ
     owner = serializers.StringRelatedField(read_only=True)
     reviews = serializers.StringRelatedField(many=True, read_only=True)
-    questions = serializers.StringRelatedField(many=True, read_only=True)
+    questions = CardQuestionSerializer(many=True, read_only=True)
     is_favorite = serializers.SerializerMethodField()
     list_curations = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Подборки как объекты
     
@@ -215,13 +224,6 @@ class CardReviewSerializer(serializers.ModelSerializer):
             from .models import ReviewLike
             return ReviewLike.objects.filter(review=obj, user=request.user).exists()
         return False
-
-class CardQuestionSerializer(serializers.ModelSerializer):
-    user = UserSimpleSerializer(read_only=True)
-    answer = serializers.CharField(read_only=True)
-    class Meta:
-        model = CardQuestion
-        fields = ['id', 'user', 'question', 'answer', 'created_at']
 
 
 # -------------------------------
