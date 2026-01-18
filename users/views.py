@@ -58,8 +58,8 @@ class RegisterView(APIView):
         
         # Generate OTP and save registration data temporarily
         otp = LoginOTP.generate_otp()
-        # Remove old unused OTPs for this phone
-        LoginOTP.objects.filter(phone_number=phone_number, is_used=False).delete()
+        # Remove all previous OTPs for this phone (avoid unique_together collisions on Postgres)
+        LoginOTP.objects.filter(phone_number=phone_number).delete()
         LoginOTP.objects.create(phone_number=phone_number, otp=otp, name=name, ref_code=ref_code or None)
         
         # Send OTP via existing SMS flow (mirrors /sms/request)
@@ -470,8 +470,8 @@ class SMSRequestView(APIView):
         # Generate OTP
         otp = LoginOTP.generate_otp()
         
-        # Delete old unused OTPs for this phone number
-        LoginOTP.objects.filter(phone_number=phone_number, is_used=False).delete()
+        # Delete all previous OTPs for this phone (avoid unique_together collisions on Postgres)
+        LoginOTP.objects.filter(phone_number=phone_number).delete()
         
         # Create new OTP
         LoginOTP.objects.create(phone_number=phone_number, otp=otp)
