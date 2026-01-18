@@ -1,12 +1,20 @@
+# Virtualenv
 venv/
+
+# Python
 __pycache__/
-db.sqlite3
 *.pyc
 *.pyo
 *.pyd
-*.log
-*.pot
-*.mo
+
+# Django
+db.sqlite3
 *.sqlite3
+media/
+staticfiles/
+
+# Logs
+*.log
+
+# System
 .DS_Store
-*.env

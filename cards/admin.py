@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import transaction
 from .models import (
     Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,  # 🔑 НОВОЕ: ReviewLike
     CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
@@ -56,6 +57,10 @@ class CardAdmin(admin.ModelAdmin):
     search_fields = ['title', 'address', 'description']
     list_filter = ['city', 'house_type', 'category', 'floors_total', 'elevator', 'parking']
     inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
+    actions = ['duplicate_cards']
+
+    class Media:
+        js = ('cards/admin_dirty_guard.js',)  # Предупреждение о несохраненных изменениях (в т.ч. при загрузке файлов)
     
     def save_model(self, request, obj, form, change):
         """Сохранить карточку и создать уведомления подписчикам"""
@@ -75,6 +80,52 @@ class CardAdmin(admin.ModelAdmin):
                     title="Новая квартира от вашего девелопера",
                     message=f"{obj.title} — {obj.price}₽, {obj.rooms} комн."
                 )
+
+    @admin.action(description="Скопировать выбранные карточки")
+    def duplicate_cards(self, request, queryset):
+        """Создать копию карточки вместе с медиа и документами"""
+        created_count = 0
+        with transaction.atomic():
+            for card in queryset:
+                original_images = list(card.images.all())
+                original_videos = list(card.videos.all())
+                original_documents = list(card.documents.all())
+
+                # Базовая копия
+                card.pk = None
+                card.id = None
+                card.rating = 0
+                card.rating_count = 0
+                card.title = f"{card.title} (копия)"
+                card.created_at = None
+                card.save()
+
+                new_card = card
+
+                # Копируем изображения
+                for img in original_images:
+                    img.pk = None
+                    img.id = None
+                    img.card = new_card
+                    img.save()
+
+                # Копируем видео
+                for vid in original_videos:
+                    vid.pk = None
+                    vid.id = None
+                    vid.card = new_card
+                    vid.save()
+
+                # Копируем документы
+                for doc in original_documents:
+                    doc.pk = None
+                    doc.id = None
+                    doc.card = new_card
+                    doc.save()
+
+                created_count += 1
+
+        self.message_user(request, f"Создано копий: {created_count}")
 
 
 # 🔹 Отдельная регистрация остальных моделей
