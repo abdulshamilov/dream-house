@@ -58,6 +58,8 @@ class CardAdmin(admin.ModelAdmin):
     list_filter = ['city', 'house_type', 'category', 'floors_total', 'elevator', 'parking']
     inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
     actions = ['duplicate_cards']
+    actions_on_top = True
+    actions_on_bottom = True
 
     class Media:
         js = ('cards/admin_dirty_guard.js',)  # Предупреждение о несохраненных изменениях (в т.ч. при загрузке файлов)
@@ -80,6 +82,22 @@ class CardAdmin(admin.ModelAdmin):
                     title="Новая квартира от вашего девелопера",
                     message=f"{obj.title} — {obj.price}₽, {obj.rooms} комн."
                 )
+
+    def get_actions(self, request):
+        """Показываем экшен копирования даже если есть только право добавления."""
+        actions = super().get_actions(request)
+
+        # Если нет прав change, Django скрывает экшены. Разрешим копирование при наличии add.
+        if not actions and request.user.has_perm('cards.add_card'):
+            if hasattr(self, 'duplicate_cards'):
+                actions = {
+                    'duplicate_cards': (
+                        self.duplicate_cards,
+                        'duplicate_cards',
+                        "Скопировать выбранные карточки"
+                    )
+                }
+        return actions
 
     @admin.action(description="Скопировать выбранные карточки")
     def duplicate_cards(self, request, queryset):
