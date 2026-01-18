@@ -85,6 +85,7 @@ class LoginOTP(models.Model):
     phone_number = models.CharField(max_length=15)
     otp = models.CharField(max_length=6)
     name = models.CharField(max_length=100, blank=True, null=True)
+    ref_code = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
     

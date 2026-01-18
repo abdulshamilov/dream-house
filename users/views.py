@@ -47,6 +47,7 @@ class RegisterView(APIView):
         
         phone_number = serializer.validated_data['phone_number']
         name = serializer.validated_data['name']
+        ref_code = serializer.validated_data.get('ref_code', '').strip()
 
         # If account already exists, force user to use SMS login flow
         if User.objects.filter(phone_number=phone_number).exists():
@@ -59,7 +60,7 @@ class RegisterView(APIView):
         otp = LoginOTP.generate_otp()
         # Remove old unused OTPs for this phone
         LoginOTP.objects.filter(phone_number=phone_number, is_used=False).delete()
-        LoginOTP.objects.create(phone_number=phone_number, otp=otp, name=name)
+        LoginOTP.objects.create(phone_number=phone_number, otp=otp, name=name, ref_code=ref_code or None)
         
         # Send OTP via existing SMS flow (mirrors /sms/request)
         SMSRequestView()._send_sms(phone_number, otp)
@@ -87,6 +88,7 @@ class RegisterConfirmView(APIView):
         
         phone_number = serializer.validated_data['phone_number']
         otp = serializer.validated_data['otp']
+        ref_code_from_request = serializer.validated_data.get('ref_code', '').strip() or None
         
         # Block if already registered
         if User.objects.filter(phone_number=phone_number).exists():
@@ -105,9 +107,7 @@ class RegisterConfirmView(APIView):
         if not otp_obj.name:
             return Response({"detail": "Name is missing. Request registration again."}, status=400)
         name = otp_obj.name
-        ref_code = None
-        if hasattr(otp_obj, 'ref_code'):
-            ref_code = otp_obj.ref_code
+        ref_code = otp_obj.ref_code or ref_code_from_request
         
         # Mark OTP as used
         otp_obj.is_used = True

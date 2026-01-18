@@ -205,11 +205,28 @@ class CardReviewSerializer(serializers.ModelSerializer):
     rating = serializers.IntegerField(min_value=1, max_value=5)
     likes_count = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Количество лайков
     is_liked = serializers.SerializerMethodField()     # 🔑 НОВОЕ: Лайкнул ли текущий пользователь
+    # Поля под фронтовый интерфейс IReview
+    user_name = serializers.SerializerMethodField()
+    user_avatar = serializers.SerializerMethodField()
+    comment = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    helpful_count = serializers.SerializerMethodField()
+    not_helpful_count = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
+    developer_response = serializers.SerializerMethodField()
     
     class Meta:
         model = CardReview
-        fields = ['id', 'user', 'text', 'rating', 'likes_count', 'is_liked', 'created_at', 'updated_at']
-        read_only_fields = ['likes_count', 'is_liked']
+        fields = [
+            'id', 'user', 'text', 'rating', 'likes_count', 'is_liked', 'created_at', 'updated_at',
+            # Совместимость с IReview
+            'user_name', 'user_avatar', 'comment', 'images',
+            'helpful_count', 'not_helpful_count', 'user_vote', 'developer_response'
+        ]
+        read_only_fields = [
+            'likes_count', 'is_liked', 'user_name', 'user_avatar', 'comment', 'images',
+            'helpful_count', 'not_helpful_count', 'user_vote', 'developer_response'
+        ]
     
     @extend_schema_field(serializers.IntegerField)
     def get_likes_count(self, obj):
@@ -224,6 +241,51 @@ class CardReviewSerializer(serializers.ModelSerializer):
             from .models import ReviewLike
             return ReviewLike.objects.filter(review=obj, user=request.user).exists()
         return False
+
+    # --- Дополнительные поля под IReview ---
+    @extend_schema_field(serializers.CharField)
+    def get_user_name(self, obj):
+        return getattr(obj.user, 'name', '') or obj.user.phone_number
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_avatar(self, obj):
+        photo = getattr(obj.user, 'profile_photo', None)
+        if photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(photo.url)
+            return photo.url
+        return None
+
+    @extend_schema_field(serializers.CharField)
+    def get_comment(self, obj):
+        return obj.text
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField(), allow_empty=True))
+    def get_images(self, obj):
+        # Сейчас картинки у отзывов не храним
+        return []
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_helpful_count(self, obj):
+        # Используем лайки как "полезно"
+        return obj.likes_count
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_not_helpful_count(self, obj):
+        # Не реализовано — возвращаем 0
+        return 0
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_vote(self, obj):
+        if self.get_is_liked(obj):
+            return 'helpful'
+        return None
+
+    @extend_schema_field(serializers.JSONField(allow_null=True))
+    def get_developer_response(self, obj):
+        # Ответ девелопера не реализован
+        return None
 
 
 # -------------------------------

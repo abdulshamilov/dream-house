@@ -15,6 +15,7 @@ class RegisterRequestSerializer(serializers.Serializer):
     """First step: request registration with phone and name"""
     phone_number = serializers.CharField(max_length=15, required=True)
     name = serializers.CharField(max_length=100, required=True)
+    ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True, help_text="Реферальный код (UUID)")
     
     def validate_phone_number(self, value):
         if User.objects.filter(phone_number=value).exists():
@@ -26,6 +27,7 @@ class RegisterConfirmSerializer(serializers.Serializer):
     """Confirm registration with OTP code - no password needed"""
     phone_number = serializers.CharField(max_length=15, required=True)
     otp = serializers.CharField(max_length=6, min_length=6, required=True)
+    ref_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     def validate_phone_number(self, value):
         if User.objects.filter(phone_number=value).exists():
