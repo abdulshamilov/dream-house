@@ -32,7 +32,7 @@ User = get_user_model()
 
 
 class RegisterView(APIView):
-    """Step 1: Registration request with phone only (без имени)"""
+    """Step 1: Registration request with phone and name"""
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -46,18 +46,28 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         
         phone_number = serializer.validated_data['phone_number']
+        name = serializer.validated_data['name']
+
+        # If account already exists, force user to use SMS login flow
+        if User.objects.filter(phone_number=phone_number).exists():
+            return Response(
+                {"detail": "User already registered. Use /api/users/sms/request/ to sign in."},
+                status=400
+            )
         
         # Generate OTP and save registration data temporarily
         otp = LoginOTP.generate_otp()
         # Remove old unused OTPs for this phone
         LoginOTP.objects.filter(phone_number=phone_number, is_used=False).delete()
-        LoginOTP.objects.create(phone_number=phone_number, otp=otp)
+        LoginOTP.objects.create(phone_number=phone_number, otp=otp, name=name)
         
-        # Store registration data in session/cache for confirmation step
-        # For now, return success message
+        # Send OTP via existing SMS flow (mirrors /sms/request)
+        SMSRequestView()._send_sms(phone_number, otp)
+
         return Response({
             "detail": "OTP sent to your phone",
-            "phone_number": phone_number
+            "phone_number": phone_number,
+            "otp": otp if settings.SMS_DEBUG_RETURN_OTP else None
         }, status=200)
 
 
@@ -77,20 +87,31 @@ class RegisterConfirmView(APIView):
         
         phone_number = serializer.validated_data['phone_number']
         otp = serializer.validated_data['otp']
-        name = serializer.validated_data['name']
-        ref_code = serializer.validated_data.get('ref_code', '')
+        
+        # Block if already registered
+        if User.objects.filter(phone_number=phone_number).exists():
+            return Response({"detail": "User with this phone number already registered"}, status=400)
         
         # Verify OTP
         try:
-            otp_obj = LoginOTP.objects.get(phone_number=phone_number, otp=otp)
-            if not otp_obj.is_valid():
-                return Response({"detail": "OTP expired or invalid"}, status=400)
-            
-            # Mark OTP as used
-            otp_obj.is_used = True
-            otp_obj.save()
+            otp_obj = LoginOTP.objects.filter(phone_number=phone_number, otp=otp).latest('created_at')
         except LoginOTP.DoesNotExist:
             return Response({"detail": "Invalid OTP"}, status=400)
+        
+        if not otp_obj.is_valid():
+            return Response({"detail": "OTP expired or already used"}, status=400)
+        
+        # Name must come from first step
+        if not otp_obj.name:
+            return Response({"detail": "Name is missing. Request registration again."}, status=400)
+        name = otp_obj.name
+        ref_code = None
+        if hasattr(otp_obj, 'ref_code'):
+            ref_code = otp_obj.ref_code
+        
+        # Mark OTP as used
+        otp_obj.is_used = True
+        otp_obj.save(update_fields=["is_used"])
         
         # Create user without password
         user = User.objects.create_user(

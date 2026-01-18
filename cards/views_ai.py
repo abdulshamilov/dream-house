@@ -6,7 +6,7 @@ from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from .models import DiscountRequest, Recommendation, ChatMessage, Card
+from .models import DiscountRequest, Recommendation, ChatMessage, Card, ViewHistory
 from .serializers import DiscountRequestSerializer, RecommendationSerializer, ChatMessageSerializer, ChatRequestSerializer, CardSerializer
 
 
@@ -61,7 +61,9 @@ class GetRecommendationsView(generics.ListAPIView):
         user = self.request.user
         
         # Получаем карточки которые пользователь просматривал
-        viewed_card_ids = ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)
+        viewed_card_ids = list(
+            ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)
+        )
         
         if not viewed_card_ids:
             # Если ничего не просматривал, показываем ТОП рейтинговых
@@ -69,13 +71,19 @@ class GetRecommendationsView(generics.ListAPIView):
         
         # Получаем параметры из последнего просмотра
         from django.db.models import Q
-        last_viewed = ViewHistory.objects.filter(user=user).latest('viewed_at')
+        last_viewed = (
+            ViewHistory.objects.filter(user=user)
+            .order_by('-viewed_at')
+            .first()
+        )
+        if not last_viewed:
+            return Card.objects.all().order_by('-rating', '-created_at')[:10]
         card = last_viewed.card
         
         # Ищем похожие карточки
         similar_cards = Card.objects.exclude(id__in=viewed_card_ids)
         similar_cards = similar_cards.filter(
-            Q(city=card.city) | 
+            Q(city=card.city) |
             Q(price__gte=card.price * 0.7, price__lte=card.price * 1.3)
         ).order_by('-rating', '-created_at')[:10]
         
