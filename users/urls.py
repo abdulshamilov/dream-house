@@ -11,6 +11,7 @@ from .views import (
     PasswordResetConfirmView,
     ChangePasswordView,
     UpdateProfileView,
+    DeleteAccountOTPRequestView,
     DeleteAccountView,
     SMSRequestView,
     SMSVerifyView,
@@ -29,6 +30,7 @@ urlpatterns = [
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('update-profile/', UpdateProfileView.as_view(), name='update-profile'),  # PUT для смены фото и имени, DELETE для удаления фото
+    path('delete-account/request-otp/', DeleteAccountOTPRequestView.as_view(), name='delete-account-request-otp'),  # POST для отправки SMS-кода
     path('delete-account/', DeleteAccountView.as_view(), name='delete-account'),   # DELETE для удаления аккаунта
     path('sms/request/', SMSRequestView.as_view(), name='sms-request'),  # Запрос OTP по SMS
     path('sms/verify/', SMSVerifyView.as_view(), name='sms-verify'),    # Проверка OTP и вход

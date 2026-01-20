@@ -124,6 +124,8 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": True,
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    # Allow request bodies for DELETE so OTP can be passed in docs
+    "ALLOWED_METHODS_WITH_BODY": ["PUT", "POST", "PATCH", "DELETE"],
 }
 
 # --- CORS ---

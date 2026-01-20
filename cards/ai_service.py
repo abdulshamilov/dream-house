@@ -6,7 +6,9 @@ AI Service для работы с OpenAI, Anthropic и DeepSeek API
 import os
 import json
 import logging
-from typing import Optional, List, Dict, Any
+import random
+import re
+from typing import Optional, List, Dict, Any, Tuple
 from django.db.models import Q
 
 logger = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ class AIAssistantService:
 
         return None
 
-    def search_cards(self, query: str, preferences: Optional[Dict] = None, limit: int = 5) -> List[Dict]:
+    def search_cards(self, query: str, preferences: Optional[Dict] = None, limit: Optional[int] = None) -> List[Dict]:
         """
         Поиск карточек по поисковому запросу и предпочтениям
         
@@ -108,10 +110,27 @@ class AIAssistantService:
                     except (ValueError, TypeError) as e:
                         logger.warning(f"Invalid filter value for {pref_key}: {e}")
         
-        # Сортировка по релевантности (рейтинг и свежесть)
-        queryset = queryset.order_by('-rating', '-created_at')
-        
-        return [self._format_card(card) for card in queryset[:limit]]
+        # Сортировка по предпочтениям пользователя
+        if preferences and isinstance(preferences, dict):
+            sort_by = preferences.get('sort_by')
+            if sort_by == 'price_asc':
+                queryset = queryset.order_by('price')
+            elif sort_by == 'price_desc':
+                queryset = queryset.order_by('-price')
+            else:
+                queryset = queryset.order_by('-rating', '-created_at')
+        else:
+            queryset = queryset.order_by('-rating', '-created_at')
+
+        # Уникализируем по id, чтобы не было дубликатов
+        cards = list(queryset)
+        unique_cards = list({card.id: card for card in cards}.values())
+
+        # Применяем лимит если указан (без рандомизации - AI сам выберет нужные)
+        if limit:
+            unique_cards = unique_cards[:limit]
+
+        return [self._format_card(card) for card in unique_cards]
 
     def _parse_city_from_query(self, keyword: str) -> List[int]:
         """Парсить название города из ключевого слова"""
@@ -220,7 +239,15 @@ class AIAssistantService:
                 
                 if is_realty_question:
                     logger.info("Realty-related question detected. Searching cards...")
-                    search_results = self.search_cards(user_message, user_preferences, limit=5)
+                    prefs = dict(user_preferences or {})
+                    price_min, price_max = self._parse_price_bounds(user_message)
+                    if price_min is not None:
+                        prefs['price_min'] = price_min
+                    if price_max is not None:
+                        prefs['price_max'] = price_max
+
+                    # Получаем все подходящие объекты, без обрезки
+                    search_results = self.search_cards(user_message, prefs, limit=None)
                     logger.info(f"Found {len(search_results)} cards")
                     
                     # Если поиск не вернул результаты по запросу, показать ТОП доступные
@@ -241,12 +268,37 @@ class AIAssistantService:
                 # Для режима free можно добавить более креативный системный промпт
                 context = user_message
             
+            # Инструктируем модель вернуть JSON с id карточек
+            context_with_format = self._inject_json_instruction(context, search_results)
+
             # Отправить запрос к API
-            logger.info(f"Calling AI API with context...")
-            response_data = self._call_api(context)
+            logger.info(f"Calling AI API with context (with JSON instruction)...")
+            response_data = self._call_api(context_with_format)
             logger.info(f"API response: success={response_data['success']}")
             
             if response_data['success']:
+                parsed_json = self._try_parse_json(response_data['response'])
+                ordered_ids = self._extract_card_ids(parsed_json)
+
+                # Используем ТОЛЬКО те id, которые вернул AI
+                if ordered_ids:
+                    # Проверяем что AI вернул только валидные ID
+                    available_ids = {card['id'] for card in search_results}
+                    valid_ids = [cid for cid in ordered_ids if cid in available_ids]
+                    invalid_ids = [cid for cid in ordered_ids if cid not in available_ids]
+                    
+                    if invalid_ids:
+                        logger.warning(f"AI returned invalid card IDs: {invalid_ids}. Available: {list(available_ids)}")
+                    
+                    if valid_ids:
+                        logger.info(f"AI selected {len(valid_ids)} valid cards: {valid_ids}")
+                        referenced_ids = valid_ids
+                    else:
+                        logger.warning("No valid card IDs returned by AI")
+                        referenced_ids = []
+                else:
+                    logger.warning("AI did not return valid JSON with card ids, using empty list")
+                    referenced_ids = []
                 # Сохранить в историю если user_id предоставлен
                 if user_id:
                     self._save_to_history(
@@ -260,8 +312,9 @@ class AIAssistantService:
                 return {
                     'success': True,
                     'response': response_data['response'],
+                    'response_json': parsed_json,
                     'tokens_used': response_data.get('tokens_used', 0),
-                    'referenced_cards': [card['id'] for card in search_results],
+                    'referenced_cards': referenced_ids,
                     'mode': mode
                 }
             else:
@@ -288,11 +341,11 @@ class AIAssistantService:
         if preferences and isinstance(preferences, dict) and any(v is not None for v in preferences.values()):
             context += f"Фильтры пользователя: {json.dumps(preferences, ensure_ascii=False)}\n\n"
         
-        # Добавить найденные карточки
+        # Добавить найденные карточки с реальными ID
         if search_results:
             context += "Доступные варианты недвижимости:\n"
-            for i, card in enumerate(search_results, 1):
-                context += f"{i}. {card['title']} - {card['address']}\n"
+            for card in search_results:
+                context += f"[ID:{card['id']}] {card['title']} - {card['address']}\n"
                 context += f"   {card['price']:,}₽ | {card['rooms']}к | {card['area']}м² | ⭐{card['rating']}\n"
         else:
             context += "В базе данных пока нет карточек.\n"
@@ -300,6 +353,86 @@ class AIAssistantService:
         context += f"\nВопрос: {user_message}"
         
         return context
+
+    def _inject_json_instruction(self, context: str, search_results: List[Dict]) -> str:
+        """Добавить инструкцию возвращать JSON c отсортированными id карточек"""
+        if not search_results:
+            return context
+        
+        ids = [card['id'] for card in search_results]
+        instruction = (
+            "\n\n🔴 КРИТИЧЕСКИ ВАЖНАЯ ИНСТРУКЦИЯ (ОБЯЗАТЕЛЬНО ВЫПОЛНИ):\n"
+            f"1. Доступные ID карточек: {ids}\n"
+            "2. ⚠️ ИСПОЛЬЗУЙ ТОЛЬКО РЕАЛЬНЫЕ ID из [ID:X] - НЕ порядковые номера!\n"
+            "3. СНАЧАЛА выбери 3-5 лучших карточек по ID\n"
+            "4. ПОТОМ напиши текст ТОЛЬКО про эти выбранные ID\n"
+            "5. В КОНЦЕ ответа верни JSON: {\"cards\": [id1, id2, id3]}\n"
+            "6. ⚠️ В тексте упоминай ТОЛЬКО те ID, которые есть в JSON\n"
+            "7. ⚠️ В JSON включай ТОЛЬКО те ID, про которые писал в тексте\n"
+            "8. Текст и JSON должны на 100% совпадать по ID\n"
+            "9. JSON должен быть на отдельной строке в самом конце\n"
+            "\nПример правильного ответа (если доступны ID: 5,6,7):\n"
+            "'Вот 3 лучших варианта: квартира [ID:5] за 10млн, квартира [ID:7] за 12млн, квартира [ID:6] за 8млн.\n"
+            "{\"cards\": [5, 7, 6]}'\n"
+        )
+        return f"{context}\n{instruction}"
+
+    def _parse_price_bounds(self, text: str) -> Tuple[Optional[int], Optional[int]]:
+        """Вытащить ценовой диапазон из запроса пользователя (от/до, 10м, 10-20м и т.д.)"""
+        lower = None
+        upper = None
+
+        text_lower = text.lower()
+        has_million_hint = 'млн' in text_lower or 'мил' in text_lower
+        has_thousand_hint = 'тыс' in text_lower or 'k ' in text_lower or text_lower.endswith('k') or text_lower.endswith(' к')
+
+        def num_to_value(raw: str, unit: Optional[str]) -> Optional[int]:
+            try:
+                value = float(raw.replace(',', '.'))
+            except ValueError:
+                return None
+
+            unit = (unit or '').strip()
+            multiplier = 1
+            if unit:
+                if unit in ['м', 'млн', 'мил', 'миллион', 'миллиона', 'миллионов']:
+                    multiplier = 1_000_000
+                elif unit in ['к', 'k', 'тыс', 'тысяч']:
+                    multiplier = 1_000
+            else:
+                if has_million_hint or value <= 500:
+                    multiplier = 1_000_000
+                elif has_thousand_hint:
+                    multiplier = 1_000
+            return int(value * multiplier)
+
+        # Диапазон через дефис/тире, например "10-20м"
+        range_match = re.search(r"(\d+[\.,]?\d*)\s*[-–—]\s*(\d+[\.,]?\d*)\s*(млн|м|мил|миллион|миллионов|к|k|тыс)?", text_lower)
+        if range_match:
+            low_raw, high_raw, unit = range_match.groups()
+            lower = num_to_value(low_raw, unit)
+            upper = num_to_value(high_raw, unit)
+            return lower, upper
+
+        # От/до конструкции
+        from_match = re.search(r"от\s*(\d+[\.,]?\d*)\s*(млн|м|мил|миллион|миллионов|к|k|тыс)?", text_lower)
+        to_match = re.search(r"до\s*(\d+[\.,]?\d*)\s*(млн|м|мил|миллион|миллионов|к|k|тыс)?", text_lower)
+        if from_match:
+            lower = num_to_value(from_match.group(1), from_match.group(2))
+        if to_match:
+            upper = num_to_value(to_match.group(1), to_match.group(2))
+
+        if lower is not None or upper is not None:
+            return lower, upper
+
+        # Одинокое число (например "квартира за 10млн" или "за 15")
+        single_match = re.search(r"(\d+[\.,]?\d*)\s*(млн|м|мил|миллион|миллионов|к|k|тыс)?", text_lower)
+        if single_match:
+            val = num_to_value(single_match.group(1), single_match.group(2))
+            if val is not None:
+                lower = val
+
+        return lower, upper
 
     def _call_api(self, context: str) -> Dict:
         """Отправить запрос к API провайдера"""
@@ -401,8 +534,6 @@ class AIAssistantService:
             response_text = message.choices[0].message.content
             
             # Очистить форматирование из ответа
-            response_text = self._clean_response(response_text)
-            
             tokens_used = getattr(message.usage, 'total_tokens', self.config.max_tokens)
             
             logger.info(f"DeepSeek response: {len(response_text)} chars, {tokens_used} tokens")
@@ -444,6 +575,49 @@ class AIAssistantService:
         text = '\n'.join([line for line in text.split('\n') if line.strip()])
         
         return text
+
+    def _try_parse_json(self, text: str) -> Optional[Any]:
+        """Попробовать распарсить ответ как JSON; если не получается, вернуть None"""
+        if not text:
+            return None
+        
+        # Попробовать распарсить весь текст
+        try:
+            return json.loads(text.strip())
+        except Exception:
+            pass
+        
+        # Попробовать найти JSON в конце текста (после последней фигурной скобки)
+        try:
+            last_brace = text.rfind('{')
+            if last_brace != -1:
+                json_part = text[last_brace:].strip()
+                # Убрать возможные символы после JSON
+                if json_part.count('{') == json_part.count('}'):
+                    return json.loads(json_part)
+        except Exception:
+            pass
+        
+        # Попробовать найти JSON блок в markdown
+        try:
+            import re
+            json_match = re.search(r'```(?:json)?\s*({[^`]+})\s*```', text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(1))
+        except Exception:
+            pass
+        
+        return None
+
+    def _extract_card_ids(self, data: Any) -> List[int]:
+        """Извлечь список id карточек из JSON, ожидаем формат {cards: [ids]}"""
+        ids: List[int] = []
+        try:
+            if isinstance(data, dict) and 'cards' in data and isinstance(data['cards'], list):
+                ids = [int(x) for x in data['cards'] if isinstance(x, (int, str)) and str(x).isdigit()]
+        except Exception:
+            pass
+        return ids
 
     def _save_to_history(self, user_id: int, message: str, response: str, cards: List[Dict], tokens: int):
         """Сохранить чат в историю"""

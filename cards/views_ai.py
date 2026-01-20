@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
 from .models import DiscountRequest, Recommendation, ChatMessage, Card, ViewHistory
+from django.db.models import Case, When
 from .serializers import DiscountRequestSerializer, RecommendationSerializer, ChatMessageSerializer, ChatRequestSerializer, CardSerializer
 
 
@@ -125,14 +126,17 @@ class AIChatView(generics.GenericAPIView):
                 # Добавить информацию о карточках в ответ
                 referenced_card_ids = result.get('referenced_cards', [])
                 if referenced_card_ids:
-                    from .models import Card
-                    cards = Card.objects.filter(id__in=referenced_card_ids)
+                    # Сохраняем порядок так, как его вернул AI (по списку id)
+                    order = Case(*[When(id=cid, then=pos) for pos, cid in enumerate(referenced_card_ids)])
+                    cards = Card.objects.filter(id__in=referenced_card_ids).annotate(_order=order).order_by('_order')
                     from .serializers import CardSerializer
-                    response_data['referenced_cards'] = CardSerializer(cards, many=True).data
+                    response_data['referenced_cards'] = CardSerializer(cards, many=True, context=self.get_serializer_context()).data
                 else:
                     response_data['referenced_cards'] = []
                 
                 response_data['ai_response'] = result.get('response')
+                if result.get('response_json') is not None:
+                    response_data['ai_response_json'] = result.get('response_json')
                 response_data['mode'] = result.get('mode', 'search')
                 
                 return Response(response_data, status=status.HTTP_201_CREATED)

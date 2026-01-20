@@ -113,93 +113,8 @@ class CardDocumentListSerializer(serializers.ModelSerializer):
 
 
 # -------------------------------
-# Основной сериализатор карточки
+# Сериализатор отзывов (используется в CardSerializer)
 # -------------------------------
-class CardSerializer(serializers.ModelSerializer):
-    images = CardImageSerializer(many=True, read_only=True)
-    videos = CardVideoSerializer(many=True, read_only=True)
-    documents = CardDocumentSerializer(many=True, read_only=True)
-    document_lists = CardDocumentListSerializer(many=True, read_only=True)  # 🔑 НОВОЕ
-    owner = serializers.StringRelatedField(read_only=True)
-    reviews = serializers.StringRelatedField(many=True, read_only=True)
-    questions = CardQuestionSerializer(many=True, read_only=True)
-    is_favorite = serializers.SerializerMethodField()
-    list_curations = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Подборки как объекты
-    
-    # 🔑 ИЗМЕНЕНО: Теперь отображает ID, имя и фото застройщика
-    developer = DeveloperInCardSerializer(read_only=True)
-    price_metr = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Цена за кв.м
-
-    class Meta:
-        model = Card
-        fields = [
-            'id', 'title', 'address', 'description',
-            'price', 'price_metr',  # 🔑 НОВОЕ: Цена за квадратный метр
-            'rooms', 'city', 'house_type',
-            'area', 'building_material', 'category', 'floors_total', 
-            'elevator', 'parking', 'balcony', 'ceiling_height',
-            'latitude', 'longitude',
-            'rating', 'rating_count',
-            'owner', 
-            'developer',  # 🔑 ДОБАВЛЕНО: Теперь Developer будет сериализован полностью
-            'images', 'videos', 'documents', 'document_lists',  # 🔑 ИЗМЕНЕНО
-            'reviews', 'questions',
-            'list_curations',  # 🔑 НОВОЕ: Подборки квартир
-            'created_at',
-            'is_favorite'
-        ]
-    
-    @extend_schema_field(serializers.FloatField)
-    def get_price_metr(self, obj):
-        """Получить цену за квадратный метр"""
-        return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
-
-    @extend_schema_field(serializers.BooleanField)
-    def get_is_favorite(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return Favorite.objects.filter(user=request.user, card=obj).exists()
-        return False
-    
-    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
-    def get_list_curations(self, obj):
-        """Получить рекомендуемые карточки из list_curations"""
-        import json
-        try:
-            curations_ids = json.loads(obj.list_curations)
-            return curations_ids if curations_ids else []
-        except (json.JSONDecodeError, ValueError, TypeError):
-            return []
-
-
-# -------------------------------
-# Сериализаторы для добавления данных
-# -------------------------------
-class CardImageCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CardImage
-        fields = ['image']
-
-class CardVideoCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CardVideo
-        fields = ['video']
-
-class CardDocumentCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CardDocument
-        fields = ['title', 'file']
-
-
-# -------------------------------
-# Сериализаторы для CallRequest, Reviews, Questions
-# -------------------------------
-class CallRequestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CallRequest
-        fields = ['id', 'phone_number', 'name', 'preferred_time', 'card']
-        read_only_fields = ['card']
-
 class CardReviewSerializer(serializers.ModelSerializer):
     user = UserSimpleSerializer(read_only=True)
     rating = serializers.IntegerField(min_value=1, max_value=5)
@@ -289,6 +204,99 @@ class CardReviewSerializer(serializers.ModelSerializer):
 
 
 # -------------------------------
+# Основной сериализатор карточки
+# -------------------------------
+class CardSerializer(serializers.ModelSerializer):
+    images = CardImageSerializer(many=True, read_only=True)
+    videos = CardVideoSerializer(many=True, read_only=True)
+    documents = CardDocumentSerializer(many=True, read_only=True)
+    document_lists = CardDocumentListSerializer(many=True, read_only=True)  # 🔑 НОВОЕ
+    owner = serializers.StringRelatedField(read_only=True)
+    reviews = serializers.SerializerMethodField()
+    questions = CardQuestionSerializer(many=True, read_only=True)
+    is_favorite = serializers.SerializerMethodField()
+    list_curations = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Подборки как объекты
+    
+    # 🔑 ИЗМЕНЕНО: Теперь отображает ID, имя и фото застройщика
+    developer = DeveloperInCardSerializer(read_only=True)
+    price_metr = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Цена за кв.м
+
+    class Meta:
+        model = Card
+        fields = [
+            'id', 'title', 'address', 'description',
+            'price', 'price_metr',  # 🔑 НОВОЕ: Цена за квадратный метр
+            'rooms', 'city', 'house_type',
+            'area', 'building_material', 'category', 'floors_total', 
+            'elevator', 'parking', 'balcony', 'ceiling_height',
+            'latitude', 'longitude',
+            'rating', 'rating_count',
+            'owner', 
+            'developer',  # 🔑 ДОБАВЛЕНО: Теперь Developer будет сериализован полностью
+            'images', 'videos', 'documents', 'document_lists',  # 🔑 ИЗМЕНЕНО
+            'reviews', 'questions',
+            'list_curations',  # 🔑 НОВОЕ: Подборки квартир
+            'created_at',
+            'is_favorite'
+        ]
+
+    @extend_schema_field(CardReviewSerializer(many=True))
+    def get_reviews(self, obj):
+        qs = obj.reviews.all().order_by('-created_at')
+        return CardReviewSerializer(qs, many=True, context=self.context).data
+    
+    @extend_schema_field(serializers.FloatField)
+    def get_price_metr(self, obj):
+        """Получить цену за квадратный метр"""
+        return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
+
+    @extend_schema_field(serializers.BooleanField)
+    def get_is_favorite(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Favorite.objects.filter(user=request.user, card=obj).exists()
+        return False
+    
+    @extend_schema_field(serializers.ListField(child=serializers.IntegerField()))
+    def get_list_curations(self, obj):
+        """Получить рекомендуемые карточки из list_curations"""
+        import json
+        try:
+            curations_ids = json.loads(obj.list_curations)
+            return curations_ids if curations_ids else []
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return []
+
+
+# -------------------------------
+# Сериализаторы для добавления данных
+# -------------------------------
+class CardImageCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CardImage
+        fields = ['image']
+
+class CardVideoCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CardVideo
+        fields = ['video']
+
+class CardDocumentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CardDocument
+        fields = ['title', 'file']
+
+
+# -------------------------------
+# Сериализаторы для CallRequest, Reviews, Questions
+# -------------------------------
+class CallRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CallRequest
+        fields = ['id', 'phone_number', 'name', 'preferred_time', 'card']
+        read_only_fields = ['card']
+
+# -------------------------------
 # Сериализатор для избранного (для MyFavoritesListAPIView)
 # -------------------------------
 class FavoriteSerializer(serializers.ModelSerializer):
@@ -336,7 +344,7 @@ class RecommendationSerializer(serializers.ModelSerializer):
 
 # ==================== AI АССИСТЕНТ ====================
 class ChatMessageSerializer(serializers.ModelSerializer):
-    referenced_cards = CardSerializer(many=True, read_only=True)
+    referenced_cards = serializers.SerializerMethodField()
     
     class Meta:
         model = ChatMessage
@@ -345,6 +353,12 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             'tokens_used', 'is_helpful', 'created_at'
         ]
         read_only_fields = ['response', 'referenced_cards', 'tokens_used', 'created_at']
+
+    @extend_schema_field(CardSerializer(many=True))
+    def get_referenced_cards(self, obj):
+        # Детеминированный порядок: по рейтингу и свежести
+        qs = obj.referenced_cards.all().order_by('-rating', '-created_at')
+        return CardSerializer(qs, many=True, context=self.context).data
 
 
 class ChatRequestSerializer(serializers.Serializer):

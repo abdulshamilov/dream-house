@@ -7,7 +7,8 @@ from rest_framework import generics, permissions, status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 # DRF Spectacular
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.openapi import AutoSchema
 
 # Django
 from django.contrib.auth import get_user_model
@@ -29,6 +30,20 @@ from .models import Referral, PasswordResetOTP, LoginOTP
 import uuid
 
 User = get_user_model()
+
+
+class DeleteWithBodySchema(AutoSchema):
+    """Allow request body on DELETE for OTP confirmation."""
+
+    def _get_request_body(self, direction='request'):
+        if self.method == 'DELETE':
+            original_method = self.method
+            try:
+                self.method = 'POST'
+                return super()._get_request_body(direction)
+            finally:
+                self.method = original_method
+        return super()._get_request_body(direction)
 
 
 class RegisterView(APIView):
@@ -108,6 +123,12 @@ class RegisterConfirmView(APIView):
             return Response({"detail": "Name is missing. Request registration again."}, status=400)
         name = otp_obj.name
         ref_code = otp_obj.ref_code or ref_code_from_request
+        if ref_code:
+            try:
+                ref_code_uuid = uuid.UUID(str(ref_code))
+                ref_code = str(ref_code_uuid)
+            except (ValueError, TypeError):
+                return Response({"detail": "Invalid ref_code"}, status=400)
         
         # Mark OTP as used
         otp_obj.is_used = True
@@ -389,38 +410,143 @@ class UpdateProfileView(APIView):
         return Response({"detail": "Photo deleted successfully"}, status=200)
 
 
-class DeleteAccountView(APIView):
-    """Удаление аккаунта и всех связанных данных (необратимо). Требует пароль для подтверждения."""
+class DeleteAccountOTPRequestView(APIView):
+    """Отправка SMS-кода для подтверждения удаления аккаунта."""
+
     permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=None,
+        responses={200: {"detail": "OTP sent to phone"}},
+        tags=["User"],
+        summary="Запросить SMS-код для удаления аккаунта",
+        description="Отправляет одноразовый код на привязанный номер. Код действует 5 минут."
+    )
+    def post(self, request):
+        user = request.user
+        phone_number = user.phone_number
+
+        otp = LoginOTP.generate_otp()
+        LoginOTP.objects.filter(phone_number=phone_number).delete()
+        LoginOTP.objects.create(phone_number=phone_number, otp=otp)
+
+        SMSRequestView()._send_sms(phone_number, otp)
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"User {phone_number} requested delete-account OTP")
+
+        return Response(
+            {
+                "detail": "OTP sent to your phone",
+                "otp": otp if settings.SMS_DEBUG_RETURN_OTP else None,
+            },
+            status=200,
+        )
+
+class DeleteAccountView(APIView):
+    """Удаление аккаунта и всех связанных данных (необратимо) по SMS-коду."""
+    permission_classes = [IsAuthenticated]
+    schema = DeleteWithBodySchema()
 
     @extend_schema(
         request=DeleteAccountSerializer,
         responses={204: None},
         tags=["User"],
         summary="Удалить аккаунт (необратимо)",
-        description="Безвозвратно удалить аккаунт, все квартиры, отзывы, историю чатов. Требует подтверждение пароля. Эта операция не может быть отменена."
+        description=(
+            "Удаляет аккаунт и связанные пользовательские данные. "
+            "Требует SMS-код, отправленный через отдельный запрос. "
+            "Эта операция не может быть отменена."
+        ),
+        examples=[
+            OpenApiExample(
+                "Пример тела запроса",
+                value={"otp": "123456"},
+                request_only=True,
+            )
+        ],
     )
     def delete(self, request):
         serializer = DeleteAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         user = request.user
-        password = serializer.validated_data.get('password')
-        otp = serializer.validated_data.get('otp')
+        otp = serializer.validated_data['otp']
+
+        try:
+            otp_obj = LoginOTP.objects.filter(phone_number=user.phone_number, otp=otp).latest('created_at')
+        except LoginOTP.DoesNotExist:
+            return Response({"detail": "Invalid OTP"}, status=400)
+
+        if not otp_obj.is_valid():
+            return Response({"detail": "OTP expired or already used"}, status=400)
+
+        otp_obj.is_used = True
+        otp_obj.save(update_fields=["is_used"])
         
-        # Проверяем пароль или OTP
-        if password:
-            if not user.check_password(password):
-                return Response({"detail": "Incorrect password"}, status=400)
-        elif otp:
+        phone_number = user.phone_number
+        user_id = user.id
+        
+        # Delete user profile photo before deleting user
+        if user.profile_photo:
             try:
-                otp_obj = LoginOTP.objects.filter(phone_number=user.phone_number, otp=otp).latest('created_at')
-            except LoginOTP.DoesNotExist:
-                return Response({"detail": "Invalid OTP"}, status=400)
-            if not otp_obj.is_valid():
-                return Response({"detail": "OTP expired or already used"}, status=400)
-            otp_obj.is_used = True
-            otp_obj.save()
+                from django.core.files.storage import default_storage
+                if default_storage.exists(user.profile_photo.name):
+                    default_storage.delete(user.profile_photo.name)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error deleting profile photo for user {phone_number}: {str(e)}")
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"User {phone_number} (ID: {user_id}) deleted account with all data")
+        
+        # Удаляем все данные пользователя (каскадное удаление)
+        user.delete()
+        
+        return Response(
+            {"detail": "Account and all associated data deleted successfully"}, 
+            status=204
+        )
+
+
+    @extend_schema(
+        request=DeleteAccountSerializer,
+        responses={204: None},
+        tags=["User"],
+        summary="Удалить аккаунт (необратимо)",
+        description=(
+            "Удаляет аккаунт и связанные пользовательские данные. "
+            "Требует SMS-код, отправленный через отдельный запрос. "
+            "Эта операция не может быть отменена."
+        ),
+        examples=[
+            OpenApiExample(
+                "Пример тела запроса",
+                value={"otp": "123456"},
+                request_only=True,
+            )
+        ],
+    )
+    def delete(self, request):
+        serializer = DeleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = request.user
+        otp = serializer.validated_data['otp']
+
+        try:
+            otp_obj = LoginOTP.objects.filter(phone_number=user.phone_number, otp=otp).latest('created_at')
+        except LoginOTP.DoesNotExist:
+            return Response({"detail": "Invalid OTP"}, status=400)
+
+        if not otp_obj.is_valid():
+            return Response({"detail": "OTP expired or already used"}, status=400)
+
+        otp_obj.is_used = True
+        otp_obj.save(update_fields=["is_used"])
         
         phone_number = user.phone_number
         user_id = user.id

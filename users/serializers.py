@@ -164,13 +164,12 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
 
 class DeleteAccountSerializer(serializers.Serializer):
-    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    otp = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=6, min_length=6)
+    otp = serializers.CharField(write_only=True, required=True, max_length=6, min_length=6)
 
-    def validate(self, data):
-        if not data.get('password') and not data.get('otp'):
-            raise serializers.ValidationError("Provide password or otp for account deletion")
-        return data
+    def validate_otp(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP must contain only digits")
+        return value
 
 
 class ReferralSerializer(serializers.ModelSerializer):
