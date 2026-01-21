@@ -592,6 +592,13 @@ class SMSRequestView(APIView):
         serializer.is_valid(raise_exception=True)
         
         phone_number = serializer.validated_data['phone_number']
+
+        # Разрешаем вход только уже зарегистрированным пользователям
+        if not User.objects.filter(phone_number=phone_number).exists():
+            return Response(
+                {"detail": "Пользователь с таким номером не найден. Зарегистрируйтесь, чтобы войти."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         
         # Generate OTP
         otp = LoginOTP.generate_otp()
@@ -606,7 +613,7 @@ class SMSRequestView(APIView):
         self._send_sms(phone_number, otp)
         
         return Response({
-            "detail": "OTP sent to your phone",
+            "detail": "Код отправлен на ваш номер",
             "otp": otp if settings.SMS_DEBUG_RETURN_OTP else None
         }, status=200)
     
@@ -861,7 +868,7 @@ class SMSRequestView(APIView):
 
 
 class SMSVerifyView(APIView):
-    """Verify OTP code and login/register user"""
+    """Проверка OTP и вход только для уже зарегистрированного пользователя"""
     permission_classes = [AllowAny]
     authentication_classes = []
 
@@ -878,6 +885,15 @@ class SMSVerifyView(APIView):
         
         phone_number = serializer.validated_data['phone_number']
         otp = serializer.validated_data['otp']
+
+        # Вход только для уже зарегистрированных пользователей
+        try:
+            user = User.objects.get(phone_number=phone_number)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "Пользователь с таким номером не найден. Зарегистрируйтесь, чтобы войти."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         
         try:
             otp_obj = LoginOTP.objects.filter(
@@ -885,18 +901,10 @@ class SMSVerifyView(APIView):
                 otp=otp
             ).latest('created_at')
         except LoginOTP.DoesNotExist:
-            return Response({"detail": "Invalid OTP"}, status=400)
+            return Response({"detail": "Неверный код"}, status=400)
         
         if not otp_obj.is_valid():
-            return Response({"detail": "OTP expired or already used"}, status=400)
-        
-        # Get or create user
-        user, created = User.objects.get_or_create(phone_number=phone_number)
-        
-        # If user was just created, mark password as unusable (кодовый вход)
-        if created:
-            user.set_unusable_password()
-            user.save()
+            return Response({"detail": "Код истёк или уже использован"}, status=400)
         
         # Mark OTP as used
         otp_obj.is_used = True
@@ -909,5 +917,5 @@ class SMSVerifyView(APIView):
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': UserSerializer(user, context={'request': request}).data,
-            'is_new': created
+            'is_new': False
         }, status=200)
