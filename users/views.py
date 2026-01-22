@@ -404,28 +404,49 @@ class UpdateProfileView(APIView):
         """Конвертация HEIC/HEIF в JPEG.
         Возвращает (file or None, error_message or None).
         """
-        content_type = getattr(uploaded_file, 'content_type', '') or ''
+        content_type = (getattr(uploaded_file, 'content_type', '') or '').lower()
         name_lower = uploaded_file.name.lower()
         heic_types = {'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'}
-        if (content_type in heic_types) or name_lower.endswith('.heic') or name_lower.endswith('.heif'):
-            try:
-                import pillow_heif
-                from PIL import Image
+        is_heic = (
+            content_type in heic_types
+            or name_lower.endswith('.heic')
+            or name_lower.endswith('.heif')
+        )
+        if not is_heic:
+            return None, None
 
+        try:
+            import pillow_heif
+            from PIL import Image
+
+            # Попробуем прямое чтение HEIF → PIL
+            uploaded_file.seek(0)
+            heif_file = pillow_heif.read_heif(uploaded_file.read())
+            image = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data, "raw")
+            image = image.convert('RGB')
+
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=90)
+            buffer.seek(0)
+
+            new_name = f"{Path(uploaded_file.name).stem}.jpg"
+            return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg'), None
+        except ImportError:
+            return None, "HEIC не поддерживается на сервере (pillow-heif не установлен). Загрузите JPG/PNG." 
+        except Exception:
+            # fallback через register opener
+            try:
+                uploaded_file.seek(0)
                 pillow_heif.register_heif_opener()
                 image = Image.open(uploaded_file)
                 image = image.convert('RGB')
                 buffer = io.BytesIO()
                 image.save(buffer, format='JPEG', quality=90)
                 buffer.seek(0)
-
                 new_name = f"{Path(uploaded_file.name).stem}.jpg"
                 return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg'), None
-            except ImportError:
-                return None, "HEIC не поддерживается на сервере (pillow-heif не установлен). Загрузите JPG/PNG." 
             except Exception:
                 return None, "Не удалось конвертировать HEIC. Загрузите JPG/PNG." 
-        return None, None
     
     @extend_schema(
         responses={200: {"detail": "Photo deleted"}},
