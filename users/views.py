@@ -363,16 +363,16 @@ class UpdateProfileView(APIView):
     )
     def put(self, request):
         data = request.data.copy()
-        files = request.FILES.copy()
 
+        new_photo = data.get('profile_photo')
         # Если загрузили HEIC/HEIF, конвертируем в JPEG для Pillow/Storage
-        if 'profile_photo' in files:
-            converted, error = self._convert_heic(files['profile_photo'])
+        if new_photo:
+            converted, error = self._convert_heic(new_photo)
             if error:
                 return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
             if converted is not None:
-                files['profile_photo'] = converted
                 data['profile_photo'] = converted
+                new_photo = converted
 
         serializer = UpdateProfileSerializer(
             request.user,
@@ -384,15 +384,14 @@ class UpdateProfileView(APIView):
         
         # Delete old photo if new one is being uploaded
         user = request.user
-        if 'profile_photo' in request.FILES and user.profile_photo:
-            # Delete old file from storage
-            if user.profile_photo.name:
-                import os
-                from django.core.files.storage import default_storage
-                if default_storage.exists(user.profile_photo.name):
-                    default_storage.delete(user.profile_photo.name)
-        
+        old_photo = user.profile_photo if new_photo else None
+
         user = serializer.save()
+
+        if new_photo and old_photo and old_photo.name:
+            from django.core.files.storage import default_storage
+            if default_storage.exists(old_photo.name):
+                default_storage.delete(old_photo.name)
         
         import logging
         logger = logging.getLogger(__name__)
