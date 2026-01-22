@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics, permissions, status
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 # DRF Spectacular
 from drf_spectacular.utils import extend_schema, OpenApiExample
@@ -28,6 +29,8 @@ from .models import Referral, PasswordResetOTP, LoginOTP
 
 # Standard Library
 import uuid
+import io
+from pathlib import Path
 
 User = get_user_model()
 
@@ -359,9 +362,20 @@ class UpdateProfileView(APIView):
         description="Изменить имя пользователя или загрузить новое фото профиля. Максимальный размер фото: 5MB. Поддерживаемые форматы: JPEG, PNG, GIF"
     )
     def put(self, request):
+        data = request.data.copy()
+        files = request.FILES.copy()
+
+        # Если загрузили HEIC/HEIF, конвертируем в JPEG для Pillow/Storage
+        if 'profile_photo' in files:
+            converted = self._convert_heic(files['profile_photo'])
+            if converted is not None:
+                files['profile_photo'] = converted
+                data['profile_photo'] = converted
+
         serializer = UpdateProfileSerializer(
-            request.user, 
-            data=request.data, 
+            request.user,
+            data=data,
+            files=files,
             partial=True
         )
         serializer.is_valid(raise_exception=True)
@@ -383,6 +397,30 @@ class UpdateProfileView(APIView):
         logger.info(f"User {user.phone_number} updated profile")
         
         return Response(UserSerializer(user, context={'request': request}).data, status=200)
+
+    def _convert_heic(self, uploaded_file):
+        """Конвертация HEIC/HEIF в JPEG. Возвращает новый файл или None."""
+        content_type = getattr(uploaded_file, 'content_type', '') or ''
+        name_lower = uploaded_file.name.lower()
+        heic_types = {'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'}
+        if (content_type in heic_types) or name_lower.endswith('.heic') or name_lower.endswith('.heif'):
+            try:
+                import pillow_heif
+                from PIL import Image
+
+                pillow_heif.register_heif_opener()
+                image = Image.open(uploaded_file)
+                image = image.convert('RGB')
+                buffer = io.BytesIO()
+                image.save(buffer, format='JPEG', quality=90)
+                buffer.seek(0)
+
+                new_name = f"{Path(uploaded_file.name).stem}.jpg"
+                return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg')
+            except Exception:
+                # Если не удалось сконвертировать, пусть валидация вернёт ошибку типов
+                return None
+        return None
     
     @extend_schema(
         responses={200: {"detail": "Photo deleted"}},

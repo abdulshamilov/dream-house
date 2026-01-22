@@ -153,12 +153,12 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
         if value:
             # Check file size (max 5MB)
             if value.size > 5 * 1024 * 1024:
-                raise serializers.ValidationError("Profile photo size must not exceed 5MB")
+                raise serializers.ValidationError("Размер фото не должен превышать 5MB")
             
-            # Check file type
-            allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif']
+            # Check file type (HEIC/HEIF допускаем, конвертируем в представлении)
+            allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence']
             if value.content_type not in allowed_types:
-                raise serializers.ValidationError("Only JPEG, PNG and GIF images are allowed")
+                raise serializers.ValidationError("Допустимы JPEG, PNG, GIF, HEIC/HEIF")
         
         return value
 
