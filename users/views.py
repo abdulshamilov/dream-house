@@ -375,8 +375,8 @@ class UpdateProfileView(APIView):
         serializer = UpdateProfileSerializer(
             request.user,
             data=data,
-            files=files,
-            partial=True
+            partial=True,
+            context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
         
