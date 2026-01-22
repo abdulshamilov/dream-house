@@ -364,7 +364,13 @@ class UpdateProfileView(APIView):
     def put(self, request):
         data = request.data.copy()
 
-        new_photo = data.get('profile_photo')
+        # Достаём файл из файлов или data (DRF кладёт в data, Django — в FILES)
+        new_photo = None
+        if 'profile_photo' in request.FILES:
+            new_photo = request.FILES['profile_photo']
+        elif 'profile_photo' in data:
+            new_photo = data.get('profile_photo')
+
         # Если загрузили HEIC/HEIF, конвертируем в JPEG для Pillow/Storage
         if new_photo:
             converted, error = self._convert_heic(new_photo)
