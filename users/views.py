@@ -367,7 +367,9 @@ class UpdateProfileView(APIView):
 
         # Если загрузили HEIC/HEIF, конвертируем в JPEG для Pillow/Storage
         if 'profile_photo' in files:
-            converted = self._convert_heic(files['profile_photo'])
+            converted, error = self._convert_heic(files['profile_photo'])
+            if error:
+                return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
             if converted is not None:
                 files['profile_photo'] = converted
                 data['profile_photo'] = converted
@@ -399,7 +401,9 @@ class UpdateProfileView(APIView):
         return Response(UserSerializer(user, context={'request': request}).data, status=200)
 
     def _convert_heic(self, uploaded_file):
-        """Конвертация HEIC/HEIF в JPEG. Возвращает новый файл или None."""
+        """Конвертация HEIC/HEIF в JPEG.
+        Возвращает (file or None, error_message or None).
+        """
         content_type = getattr(uploaded_file, 'content_type', '') or ''
         name_lower = uploaded_file.name.lower()
         heic_types = {'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'}
@@ -416,11 +420,12 @@ class UpdateProfileView(APIView):
                 buffer.seek(0)
 
                 new_name = f"{Path(uploaded_file.name).stem}.jpg"
-                return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg')
+                return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg'), None
+            except ImportError:
+                return None, "HEIC не поддерживается на сервере (pillow-heif не установлен). Загрузите JPG/PNG." 
             except Exception:
-                # Если не удалось сконвертировать, пусть валидация вернёт ошибку типов
-                return None
-        return None
+                return None, "Не удалось конвертировать HEIC. Загрузите JPG/PNG." 
+        return None, None
     
     @extend_schema(
         responses={200: {"detail": "Photo deleted"}},
