@@ -4,6 +4,7 @@ from django.db import connection
 from django.db.models import Q, Count, F
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
 
 # DRF
 from rest_framework import generics, permissions, status, serializers
@@ -923,11 +924,11 @@ class PersonalRecommendationsView(generics.ListAPIView):
             
             if avg_price:
                 avg_price = sum(avg_price) / len(avg_price)
-                price_range_min = avg_price * 0.7
-                price_range_max = avg_price * 1.3
+                price_range_min = avg_price * Decimal('0.7')
+                price_range_max = avg_price * Decimal('1.3')
             else:
-                price_range_min = 0
-                price_range_max = 999999999
+                price_range_min = Decimal('0')
+                price_range_max = Decimal('999999999')
             
             # Рекомендуем похожие карточки
             recommendations = Card.objects.filter(

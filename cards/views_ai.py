@@ -5,6 +5,7 @@ AI Views: скидки, рекомендации, AI чат
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from decimal import Decimal
 
 from .models import DiscountRequest, Recommendation, ChatMessage, Card, ViewHistory
 from django.db.models import Case, When
@@ -85,7 +86,7 @@ class GetRecommendationsView(generics.ListAPIView):
         similar_cards = Card.objects.exclude(id__in=viewed_card_ids)
         similar_cards = similar_cards.filter(
             Q(city=card.city) |
-            Q(price__gte=card.price * 0.7, price__lte=card.price * 1.3)
+            Q(price__gte=card.price * Decimal('0.7'), price__lte=card.price * Decimal('1.3'))
         ).order_by('-rating', '-created_at')[:10]
         
         return similar_cards
