@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 import uuid
 import random
+from decimal import Decimal, ROUND_HALF_UP
 from django.utils import timezone
 from datetime import timedelta
 
@@ -50,11 +51,25 @@ class User(AbstractBaseUser, PermissionsMixin):
 class Referral(models.Model):
     referrer = models.ForeignKey(User, related_name="referrals_sent", on_delete=models.CASCADE)
     referred = models.ForeignKey(User, related_name="referrals_received", on_delete=models.CASCADE)
+    card = models.ForeignKey('cards.Card', related_name='referrals', null=True, blank=True, on_delete=models.SET_NULL)
     code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)  # уникальный код для ссылки
+    reward_per_sqm = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('500.00'))
+    reward_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.referrer} → {self.referred}"
+
+    def save(self, *args, **kwargs):
+        # Рассчитать сумму награды: ставка за кв.м * площадь карточки
+        if self.card and self.card.area:
+            self.reward_amount = (Decimal(self.reward_per_sqm) * Decimal(self.card.area)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        else:
+            self.reward_amount = Decimal('0.00')
+        super().save(*args, **kwargs)
 
 
 class PasswordResetOTP(models.Model):

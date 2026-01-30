@@ -47,15 +47,19 @@ class CardQuestionInline(admin.TabularInline):
 class CardAdmin(admin.ModelAdmin):
     list_display = [
         'title', 'owner', 'price', 'rooms', 'city', 'house_type',
-        'category', 'floors_total', 'elevator', 'parking',
+        'category', 'building_material', 'floors_total', 'elevator', 'parking',
+        'balcony', 'loggia', 'finishing',
         'rating', 'rating_count', 'created_at'
     ]
     list_editable = [
-        'price', 'rooms', 'city', 'house_type', 'category',
-        'floors_total', 'elevator', 'parking'
+        'price', 'rooms', 'city', 'house_type', 'category', 'building_material',
+        'floors_total', 'elevator', 'parking', 'balcony', 'loggia', 'finishing'
     ]
     search_fields = ['title', 'address', 'description']
-    list_filter = ['city', 'house_type', 'category', 'floors_total', 'elevator', 'parking']
+    list_filter = [
+        'city', 'house_type', 'category', 'building_material', 'finishing',
+        'floors_total', 'elevator', 'parking', 'balcony', 'loggia'
+    ]
     inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
     actions = ['duplicate_cards']
     actions_on_top = True

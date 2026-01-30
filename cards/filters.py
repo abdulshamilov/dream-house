@@ -14,7 +14,15 @@ class CardFilter(django_filters.FilterSet):
     city = django_filters.ChoiceFilter(choices=Card.CITY_CHOICES)
     building_material = django_filters.ChoiceFilter(choices=Card.BUILDING_MATERIAL_CHOICES)
     category = django_filters.ChoiceFilter(choices=Card.CATEGORY_CHOICES)
-    elevator = django_filters.ChoiceFilter(choices=Card.ELEVATOR_CHOICES)
+    finishing = django_filters.ChoiceFilter(choices=Card._meta.get_field('finishing').choices)
+    balcony = django_filters.BooleanFilter(field_name='balcony')
+    loggia = django_filters.BooleanFilter(field_name='loggia')
+    elevator = django_filters.MultipleChoiceFilter(
+        choices=Card.ELEVATOR_CHOICES,
+        field_name='elevator',
+        conjoined=False,
+        label='Тип лифта (можно несколько)'
+    )
     parking = django_filters.ChoiceFilter(choices=Card.PARKING_CHOICES)
 
     price_min = django_filters.NumberFilter(field_name='price', lookup_expr='gte')
@@ -51,7 +59,8 @@ class CardFilter(django_filters.FilterSet):
         fields = [
             'search',
             'house_type', 'city', 'building_material', 'category',
-            'elevator', 'parking', 'balcony',
+            'finishing', 'balcony', 'loggia',
+            'elevator', 'parking',
             'price_min', 'price_max',
             'rooms_min', 'rooms_max',
             'area_min', 'area_max',

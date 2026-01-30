@@ -175,10 +175,11 @@ class DeleteAccountSerializer(serializers.Serializer):
 class ReferralSerializer(serializers.ModelSerializer):
     referred_name = serializers.CharField(source='referred.name', read_only=True)
     referred_phone = serializers.CharField(source='referred.phone_number', read_only=True)
+    reward_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = Referral
-        fields = ['referred_name', 'referred_phone', 'created_at']
+        fields = ['referred_name', 'referred_phone', 'reward_amount', 'created_at']
 
 
 class SMSRequestSerializer(serializers.Serializer):

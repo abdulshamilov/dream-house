@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics, permissions, status
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 # DRF Spectacular
@@ -353,6 +354,7 @@ class ChangePasswordView(APIView):
 class UpdateProfileView(APIView):
     """Обновление профиля: имя, фото профиля"""
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     @extend_schema(
         request=UpdateProfileSerializer,
@@ -370,6 +372,16 @@ class UpdateProfileView(APIView):
             new_photo = request.FILES['profile_photo']
         elif 'profile_photo' in data:
             new_photo = data.get('profile_photo')
+
+        # Debug log: что реально пришло
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "update-profile: files=%s data_has_photo=%s photo_type=%s",
+            list(request.FILES.keys()),
+            'profile_photo' in data,
+            type(new_photo).__name__ if new_photo is not None else None,
+        )
 
         # Если загрузили HEIC/HEIF, конвертируем в JPEG для Pillow/Storage
         if new_photo:
@@ -399,8 +411,6 @@ class UpdateProfileView(APIView):
             if default_storage.exists(old_photo.name):
                 default_storage.delete(old_photo.name)
         
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"User {user.phone_number} updated profile")
         
         return Response(UserSerializer(user, context={'request': request}).data, status=200)
@@ -438,7 +448,7 @@ class UpdateProfileView(APIView):
             return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg'), None
         except ImportError:
             return None, "HEIC не поддерживается на сервере (pillow-heif не установлен). Загрузите JPG/PNG." 
-        except Exception:
+        except Exception as e:
             # fallback через register opener
             try:
                 uploaded_file.seek(0)
@@ -450,7 +460,9 @@ class UpdateProfileView(APIView):
                 buffer.seek(0)
                 new_name = f"{Path(uploaded_file.name).stem}.jpg"
                 return SimpleUploadedFile(new_name, buffer.getvalue(), content_type='image/jpeg'), None
-            except Exception:
+            except Exception as e2:
+                import logging
+                logging.getLogger(__name__).error("HEIC convert failed: %s / fallback: %s", str(e), str(e2))
                 return None, "Не удалось конвертировать HEIC. Загрузите JPG/PNG." 
     
     @extend_schema(

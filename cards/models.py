@@ -7,6 +7,7 @@ class Card(models.Model):
         (1, 'Махачкала'),
         (2, 'Каспийск'),
         (3, 'Дербент'),
+        (4, 'Избербаш'),
     )
 
     HOUSE_TYPE_CHOICES = (
@@ -18,22 +19,28 @@ class Card(models.Model):
         ('brick', 'Кирпичный'),
         ('panel', 'Панельный'),
         ('monolith', 'Монолитный'),
+        ('brick_monolith', 'Кирпично-монолитный'),
+        ('solid_monolith', 'Цельно-монолитный'),
     )
 
     CATEGORY_CHOICES = (
         ('flat', 'Квартира'),
         ('new_building', 'Новостройка'),
+        ('secondary', 'Вторичное'),
     )
 
     ELEVATOR_CHOICES = (
         ('none', 'Нет'),
         ('passenger', 'Пассажирский'),
         ('cargo', 'Грузовой'),
+        ('passenger_and_cargo', 'Пассажирский и грузовой'),
     )
 
     PARKING_CHOICES = (
         ('none', 'Нет'),
         ('underground', 'Подземная'),
+        ('ground', 'Наземная'),
+        ('two_level', 'Двухуровневая'),
     )
 
     owner = models.ForeignKey(
@@ -64,6 +71,15 @@ class Card(models.Model):
     elevator = models.CharField(max_length=20, choices=ELEVATOR_CHOICES, default='none')
     parking = models.CharField(max_length=20, choices=PARKING_CHOICES, default='none')
     balcony = models.BooleanField(default=False)
+    loggia = models.BooleanField(default=False)
+    finishing = models.CharField(
+        max_length=20,
+        choices=(
+            ('none', 'Без отделки'),
+            ('with_finish', 'С отделкой'),
+        ),
+        default='none'
+    )
     ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50)
 
     latitude = models.FloatField(null=True, blank=True)

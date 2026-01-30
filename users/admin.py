@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django import forms
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 
-from .models import User
+from .models import User, Referral
 
 
 # ---------- Форма создания пользователя ----------
@@ -99,3 +99,33 @@ class UserAdmin(BaseUserAdmin):
 
     search_fields = ('phone_number', 'name')
     ordering = ('phone_number',)
+
+
+@admin.register(Referral)
+class ReferralAdmin(admin.ModelAdmin):
+    list_display = ('referrer', 'referred', 'card', 'reward_per_sqm', 'reward_amount', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = (
+        'referrer__id', 'referrer__phone_number', 'referrer__name',
+        'referred__id', 'referred__phone_number', 'referred__name',
+        'card__id', 'card__title'
+    )
+    autocomplete_fields = ('referrer', 'referred', 'card')
+    list_editable = ('reward_per_sqm',)
+    readonly_fields = ('reward_amount', 'created_at')
+
+    fieldsets = (
+        (None, {
+            'fields': ('referrer', 'referred', 'card')
+        }),
+        ('Награда', {
+            'fields': ('reward_per_sqm', 'reward_amount')
+        }),
+        ('Служебное', {
+            'fields': ('created_at',)
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        # reward_amount пересчитается в модели
+        super().save_model(request, obj, form, change)

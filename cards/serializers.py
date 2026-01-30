@@ -228,7 +228,7 @@ class CardSerializer(serializers.ModelSerializer):
             'price', 'price_metr',  # 🔑 НОВОЕ: Цена за квадратный метр
             'rooms', 'city', 'house_type',
             'area', 'building_material', 'category', 'floors_total', 
-            'elevator', 'parking', 'balcony', 'ceiling_height',
+            'elevator', 'parking', 'balcony', 'loggia', 'finishing', 'ceiling_height',
             'latitude', 'longitude',
             'rating', 'rating_count',
             'owner', 
