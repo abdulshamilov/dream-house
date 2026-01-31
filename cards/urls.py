@@ -26,6 +26,7 @@ from .views import (
     PersonalRecommendationsView,  # 🔑 ПОДБОРКА ДЛЯ МЕНЯ
     RecentlyViewedView,  # 🔑 НЕДАВНО ПРОСМОТРЕННЫЕ
     ReviewLikeView,  # 🔑 ЛАЙКИ НА ОТЗЫВЫ
+    PromotionListView,  # 🔑 АКЦИИ
 )
 from .views_ai import (
     DiscountRequestCreateView,
@@ -39,6 +40,7 @@ from .views_ai import (
 urlpatterns = [
     path("", CardListView.as_view(), name="cards_list"),
     path("filter/", CardFilterPostView.as_view(), name="cards_filter_post"),
+    path("promotions/", PromotionListView.as_view(), name="promotions_list"),
     path("recommendations/for-me/", PersonalRecommendationsView.as_view(), name="personal_recommendations"),  # 🔑 ПОДБОРКА ДЛЯ МЕНЯ
     path("recent-views/", RecentlyViewedView.as_view(), name="recently_viewed"),  # 🔑 НЕДАВНО ПРОСМОТРЕННЫЕ
     path("<int:pk>/", CardDetailView.as_view(), name="card_detail"),

@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.db.models import Avg
+from decimal import Decimal, ROUND_HALF_UP
 
 class Card(models.Model):
     CITY_CHOICES = (
@@ -340,6 +341,52 @@ class DiscountRequest(models.Model):
 
     def __str__(self):
         return f"Скидка {self.user} на {self.card.title}: {self.original_price} → {self.requested_price}"
+
+
+class Promotion(models.Model):
+    """Акция с баннером и набором карточек."""
+    title = models.CharField(max_length=255)
+    banner_image = models.ImageField(upload_to='promotions/banners/')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Акция"
+        verbose_name_plural = "Акции"
+
+    def __str__(self):
+        return self.title
+
+
+class PromotionItem(models.Model):
+    """Конкретная карточка в акции с индивидуальной скидкой и сроком действия."""
+    promotion = models.ForeignKey(Promotion, related_name='items', on_delete=models.CASCADE)
+    card = models.ForeignKey(Card, related_name='promotion_items', on_delete=models.CASCADE)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    benefit_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    valid_until = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('promotion', 'card')
+        ordering = ['-created_at']
+        verbose_name = "Карточка в акции"
+        verbose_name_plural = "Карточки в акции"
+
+    def __str__(self):
+        return f"{self.card.title} в акции {self.promotion.title}"
+
+    def save(self, *args, **kwargs):
+        # benefit = цена * (скидка/100)
+        if self.card and self.card.price is not None:
+            self.benefit_amount = (
+                Decimal(self.card.price) * (Decimal(self.discount_percent) / Decimal('100'))
+            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        else:
+            self.benefit_amount = Decimal('0.00')
+        super().save(*args, **kwargs)
 
 
 class Recommendation(models.Model):

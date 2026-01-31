@@ -3,7 +3,7 @@ from django.db import transaction
 from .models import (
     Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,  # 🔑 НОВОЕ: ReviewLike
     CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
-    CardDocumentList, ViewHistory  # 🔑 НОВЫЕ
+    CardDocumentList, ViewHistory, Promotion, PromotionItem  # 🔑 НОВЫЕ
 )
 
 # 🔹 Inlines для связанных моделей
@@ -40,6 +40,14 @@ class CardQuestionInline(admin.TabularInline):
         if not request.user.is_superuser:
             return self.readonly_fields + ['answer']
         return self.readonly_fields
+
+
+class PromotionItemInline(admin.TabularInline):
+    model = PromotionItem
+    extra = 1
+    autocomplete_fields = ['card']
+    fields = ['card', 'discount_percent', 'benefit_amount', 'valid_until']
+    readonly_fields = ['benefit_amount']
 
 
 # 🔹 Основная админка для карточки
@@ -292,6 +300,15 @@ class RecommendationAdmin(admin.ModelAdmin):
             return self.readonly_fields
         # Рекомендации автоматически создаются, редактировать нельзя
         return ['user', 'card', 'score', 'reason', 'created_at']
+
+
+@admin.register(Promotion)
+class PromotionAdmin(admin.ModelAdmin):
+    list_display = ['title', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['title']
+    inlines = [PromotionItemInline]
+    readonly_fields = ['created_at', 'updated_at']
 
 
 # ==================== AI АССИСТЕНТ ====================

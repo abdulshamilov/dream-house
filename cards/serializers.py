@@ -7,7 +7,7 @@ from .models import (
     Card, CardImage, CardVideo, CardDocument, CallRequest,
     CardReview, CardQuestion, SearchHistory, ReviewLike,
     Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
-    CardDocumentList, ViewHistory
+    CardDocumentList, ViewHistory, Promotion, PromotionItem
 )
 from developers.models import Developer
 
@@ -84,6 +84,30 @@ class CardCurationSerializer(serializers.ModelSerializer):
     def get_price_metr(self, obj):
         """Получить цену за квадратный метр"""
         return round(obj.price_metr, 2) if obj.area and obj.area > 0 else 0
+
+
+class PromotionItemSerializer(serializers.ModelSerializer):
+    card = CardCurationSerializer(read_only=True)
+
+    class Meta:
+        model = PromotionItem
+        fields = ['card', 'discount_percent', 'benefit_amount', 'valid_until']
+
+
+class PromotionSerializer(serializers.ModelSerializer):
+    banner_image = serializers.SerializerMethodField()
+    items = PromotionItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Promotion
+        fields = ['id', 'title', 'banner_image', 'items']
+
+    def get_banner_image(self, obj):
+        if obj.banner_image:
+            request = self.context.get('request')
+            url = obj.banner_image.url
+            return request.build_absolute_uri(url) if request else url
+        return None
 
 class CardVideoSerializer(serializers.ModelSerializer):
     class Meta:

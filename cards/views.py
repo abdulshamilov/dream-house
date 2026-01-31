@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.db import connection
 from django.db.models import Q, Count, F
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 from decimal import Decimal
 
 # DRF
@@ -21,11 +21,12 @@ from rapidfuzz import fuzz
 # Local
 from .models import (
     Card, CardReview, CardQuestion, CardVideo, 
-    SearchHistory, Favorite, ViewHistory, ReviewLike
+    SearchHistory, Favorite, ViewHistory, ReviewLike, Promotion
 )
 from .serializers import (
     CardSerializer, CardReviewSerializer, CardQuestionSerializer,
     CardVideoSerializer, CallRequestSerializer, FavoriteSerializer,
+    PromotionSerializer,
 )
 from .filters import CardFilter
 from .permissions import IsAdminOrReadOnly
@@ -61,6 +62,29 @@ class CardListView(generics.ListAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = CardFilter
     pagination_class = CustomPagination
+
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+
+@extend_schema(
+    summary="Получить активные акции для карусели",
+    description="Возвращает список акций с баннерами и карточками, где у каждой карточки есть скидка и выгода в рублях.",
+    responses=PromotionSerializer(many=True),
+)
+class PromotionListView(generics.ListAPIView):
+    serializer_class = PromotionSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        today = date.today()
+        return (
+            Promotion.objects
+            .filter(is_active=True)
+            .filter(Q(items__valid_until__gte=today) | Q(items__valid_until__isnull=True))
+            .prefetch_related('items__card', 'items__card__developer')
+            .distinct()
+        )
 
     def get_serializer_context(self):
         return {'request': self.request}
