@@ -9,7 +9,11 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Notification.objects.none()
-        return Notification.objects.filter(user=self.request.user)
+        return (
+            Notification.objects.filter(user=self.request.user)
+            .select_related("card")
+            .prefetch_related("card__images")
+        )
 
 
 class NotificationMarkReadView(generics.UpdateAPIView):

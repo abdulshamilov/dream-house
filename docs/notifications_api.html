@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DreamHouse — Notifications API (v1.0)</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2933;
+      --muted: #52616b;
+      --accent: #2f80ed;
+      --green: #27ae60;
+      --blue: #2f80ed;
+      --red: #e63946;
+      --border: #e1e7ef;
+      --code-bg: #0f172a;
+      --code-fg: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(circle at 10% 10%, rgba(47,128,237,0.08), transparent 25%),
+                  radial-gradient(circle at 90% 20%, rgba(39,174,96,0.08), transparent 22%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 0 48px;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+    header {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.06);
+    }
+    h1 { margin: 0 0 4px; font-size: 26px; }
+    .meta { color: var(--muted); font-size: 14px; }
+    section { margin-top: 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.04);
+      margin-bottom: 16px;
+    }
+    h2 { margin: 0 0 12px; font-size: 20px; }
+    h3 { margin: 16px 0 8px; font-size: 16px; }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { margin: 4px 0; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+    pre {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 14px;
+      border-radius: 10px;
+      overflow-x: auto;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; margin-right: 6px; }
+    .pill.green { background: var(--green); }
+    .pill.blue { background: var(--blue); }
+    .pill.red { background: var(--red); }
+    .muted { color: var(--muted); }
+    .inline-code { background: #eef2f7; border-radius: 6px; padding: 2px 6px; font-size: 90%; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .steps ol { padding-left: 20px; margin: 10px 0; }
+    .steps li { margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>DreamHouse — Notifications API</h1>
+      <div class="meta">Версия: 1.0 · Дата спецификации: 2025-02-02</div>
+    </header>
+
+    <section class="card">
+      <h2>Эндпоинты</h2>
+      <ul>
+        <li><span class="inline-code">GET /api/notifications/</span> — список уведомлений (Bearer JWT обязателен)</li>
+        <li><span class="inline-code">PATCH /api/notifications/{id}/read/</span> — пометить уведомление прочитанным (только своё)</li>
+        <li><strong>Авторизация:</strong> заголовок <span class="inline-code">Authorization: Bearer &lt;token&gt;</span></li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Формат ответа (пагинация)</h2>
+      <pre>{
+  "count": 10,
+  "next": "https://api.dreamhouse.ru/api/notifications/?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "title": "Цена снижена на 15%!",
+      "message": "2-комнатная квартира в ЖК Престиж теперь доступнее",
+      "type": "price_drop",
+      "is_read": false,
+      "created_at": "2025-01-15T10:30:00Z",
+      "card_id": "123",
+      "image_url": "https://api.dreamhouse.ru/media/apartments/123/photo1.jpg",
+      "price": 4500000,
+      "old_price": 5300000
+    }
+  ]
+}</pre>
+      <h3>Пример без скидки</h3>
+      <pre>{
+  "id": 2,
+  "title": "Новая квартира по вашим критериям",
+  "message": "Появилась квартира, соответствующая вашим фильтрам",
+  "type": "subscription",
+  "is_read": false,
+  "created_at": "2025-01-14T14:20:00Z",
+  "card_id": "456",
+  "image_url": "https://api.dreamhouse.ru/media/apartments/456/photo1.jpg",
+  "price": 6200000,
+  "old_price": null
+}</pre>
+      <h3>Пример без привязки к карточке</h3>
+      <pre>{
+  "id": 3,
+  "title": "Системное уведомление",
+  "message": "Ваш профиль успешно обновлён",
+  "type": "system",
+  "is_read": true,
+  "created_at": "2025-01-13T09:00:00Z",
+  "card_id": null,
+  "image_url": null,
+  "price": null,
+  "old_price": null
+}</pre>
+    </section>
+
+    <section class="card">
+      <h2>Поля уведомления</h2>
+      <div class="grid">
+        <div>
+          <ul>
+            <li><strong>id</strong> — integer</li>
+            <li><strong>title</strong> — string|null</li>
+            <li><strong>message</strong> — string|null</li>
+            <li><strong>type</strong> — string|null</li>
+            <li><strong>is_read</strong> — boolean</li>
+            <li><strong>created_at</strong> — ISO 8601</li>
+          </ul>
+        </div>
+        <div>
+          <ul>
+            <li><strong>card_id</strong> — string|null</li>
+            <li><strong>image_url</strong> — string|null</li>
+            <li><strong>price</strong> — integer|null</li>
+            <li><strong>old_price</strong> — integer|null</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Логика</h3>
+      <ul>
+        <li><strong>card_id</strong>: null, если нет связи с объектом.</li>
+        <li><strong>image_url</strong>: первое фото карточки; если фото нет или карточки нет — null.</li>
+        <li><strong>price</strong>: текущая цена карточки, округление ROUND_HALF_UP; иначе null.</li>
+        <li><strong>old_price</strong>: отдаётся только если задана и строго больше price; иначе null.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Типы уведомлений и бейджи</h2>
+      <div class="badge-row">
+        <span class="pill green">price_drop</span>
+        <span class="pill green">sale</span>
+        <span class="pill green">discount</span>
+        <span class="pill blue">subscription</span>
+        <span class="pill red">new</span>
+        <span class="pill" style="background:#6c757d;">system</span>
+      </div>
+      <p class="muted">Рекомендация: для <em>system</em> используйте нейтральный серый или иконку уведомления.</p>
+    </section>
+
+    <section class="card">
+      <h2>UI-гайд</h2>
+      <ul>
+        <li><strong>С фото (image_url есть):</strong> карточка 16:9, бейдж слева сверху, индикатор непрочитанности справа сверху, дата справа снизу на фото; под фото — заголовок, описание, цена/скидка.</li>
+        <li><strong>Без фото:</strong> компактная текстовая карточка; верхняя строка — бейдж + дата; ниже — заголовок и описание.</li>
+        <li><strong>Цены:</strong> если price есть — показываем; если old_price > price — показываем старую зачёркнутой и процент скидки ((old_price - price) / old_price * 100), округление до целого или 1 знака — по договорённости.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Пагинация</h2>
+      <ul>
+        <li>Параметр <span class="inline-code">page</span>; поля ответа: <span class="inline-code">count</span>, <span class="inline-code">next</span>, <span class="inline-code">previous</span>, <span class="inline-code">results</span>.</li>
+        <li>По умолчанию <span class="inline-code">page_size = 10</span>.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Маркировка прочитанным</h2>
+      <ul>
+        <li><span class="inline-code">PATCH /api/notifications/{id}/read/</span> без тела.</li>
+        <li>Коды: 200 — успешно; 401 — нет/просрочен токен; 404 — чужое уведомление или отсутствует.</li>
+        <li>Доступно только владельцу уведомления.</li>
+      </ul>
+    </section>
+
+    <section class="card steps">
+      <h2>Быстрая проверка</h2>
+      <ol>
+        <li>Авторизоваться (Bearer JWT).</li>
+        <li>Вызвать <span class="inline-code">GET /api/notifications/</span> — проверить image_url/price/old_price по логике.</li>
+        <li>Вызвать <span class="inline-code">PATCH /api/notifications/{id}/read/</span> — убедиться, что is_read меняется, чужие уведомления дают 404.</li>
+      </ol>
+    </section>
+  </div>
+</body>
+</html>
