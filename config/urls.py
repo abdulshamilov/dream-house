@@ -5,7 +5,8 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiResponse, inline_serializer
+from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from users.serializers import CustomTokenObtainPairSerializer
 from django.conf import settings
@@ -30,21 +31,23 @@ from django.conf.urls.static import static
     ),
     request=CustomTokenObtainPairSerializer,
     responses={
-        200: {
-            "application/json": {
-                "example": {
-                    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-                    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
-                }
-            }
-        },
-        401: {
-            "application/json": {
-                "example": {
-                    "detail": "No active account found with the given credentials"
-                }
-            }
-        },
+        200: OpenApiResponse(
+            response=inline_serializer(
+                name="TokenPairResponse",
+                fields={
+                    "access": serializers.CharField(),
+                    "refresh": serializers.CharField(),
+                },
+            ),
+            description="JWT token pair",
+        ),
+        401: OpenApiResponse(
+            response=inline_serializer(
+                name="TokenPairError",
+                fields={"detail": serializers.CharField()},
+            ),
+            description="No active account found with the given credentials",
+        ),
     },
 )
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -63,20 +66,20 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     ),
     request=TokenRefreshSerializer,
     responses={
-        200: {
-            "application/json": {
-                "example": {
-                    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
-                }
-            }
-        },
-        401: {
-            "application/json": {
-                "example": {
-                    "detail": "Token is invalid or expired"
-                }
-            }
-        },
+        200: OpenApiResponse(
+            response=inline_serializer(
+                name="TokenRefreshResponse",
+                fields={"access": serializers.CharField()},
+            ),
+            description="New access token",
+        ),
+        401: OpenApiResponse(
+            response=inline_serializer(
+                name="TokenRefreshError",
+                fields={"detail": serializers.CharField()},
+            ),
+            description="Token is invalid or expired",
+        ),
     },
 )
 class CustomTokenRefreshView(TokenRefreshView):

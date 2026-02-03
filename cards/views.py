@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 
 # Third-party
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, inline_serializer
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank, TrigramSimilarity
 from rapidfuzz import fuzz
 
@@ -42,6 +42,27 @@ class RateCardResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
     new_average = serializers.FloatField()
     total_votes = serializers.IntegerField()
+
+
+class CitySerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+
+
+class CityListView(APIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = CitySerializer
+
+    @extend_schema(
+        responses=CitySerializer(many=True),
+        description="Список городов (id, name)",
+    )
+    def get(self, request):
+        cities = [
+            {"id": choice[0], "name": choice[1]}
+            for choice in Card.CITY_CHOICES
+        ]
+        return Response(cities)
 
 # -------------------------------
 # 1. Список карточек
@@ -356,7 +377,18 @@ class CardReviewDetailView(generics.RetrieveAPIView):
 @extend_schema(
     summary="Лайк/анлайк отзыв",
     description="PUT - лайк отзыв, DELETE - снять лайк",
-    responses={200: {"detail": "Liked"}}
+    responses={
+        200: OpenApiResponse(
+            response=inline_serializer(
+                name="ReviewLikeResponse",
+                fields={
+                    "detail": serializers.CharField(),
+                    "likes_count": serializers.IntegerField(required=False),
+                },
+            ),
+            description="Результат лайка/анлайка",
+        )
+    }
 )
 class ReviewLikeView(generics.GenericAPIView):
     """Лайк на отзыв"""

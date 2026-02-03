@@ -102,6 +102,7 @@ class PromotionSerializer(serializers.ModelSerializer):
         model = Promotion
         fields = ['id', 'title', 'banner_image', 'items']
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
     def get_banner_image(self, obj):
         if obj.banner_image:
             request = self.context.get('request')

@@ -3,13 +3,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 # DRF Spectacular
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiResponse, inline_serializer
 from drf_spectacular.openapi import AutoSchema
 
 # Django
@@ -56,7 +56,19 @@ class RegisterView(APIView):
 
     @extend_schema(
         request=RegisterRequestSerializer,
-        responses={200: {"detail": "OTP sent to phone", "phone_number": "string"}},
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="RegisterOTPResponse",
+                    fields={
+                        "detail": serializers.CharField(),
+                        "phone_number": serializers.CharField(),
+                        "otp": serializers.CharField(required=False, allow_null=True),
+                    },
+                ),
+                description="OTP sent to phone",
+            )
+        },
         tags=["Auth"],
         summary="Шаг 1: Регистрация - отправка кода подтверждения"
     )
@@ -181,7 +193,18 @@ class PasswordResetRequestView(APIView):
 
     @extend_schema(
         request=PasswordResetRequestSerializer,
-        responses={200: {"detail": "OTP sent to phone"}},
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="PasswordResetOTPResponse",
+                    fields={
+                        "detail": serializers.CharField(),
+                        "otp": serializers.CharField(required=False, allow_null=True),
+                    },
+                ),
+                description="OTP sent to phone",
+            )
+        },
         tags=["Auth"],
         summary="Запрос сброса пароля (отправка OTP)"
     )
@@ -262,7 +285,15 @@ class LogoutView(APIView):
 
     @extend_schema(
         request=None,
-        responses={200: {"detail": "Logged out"}},
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="LogoutResponse",
+                    fields={"detail": serializers.CharField()}
+                ),
+                description="Logged out",
+            )
+        },
         tags=["Auth"],
         summary="Выход из аккаунта (разорвать JWT сессию)"
     )
@@ -320,7 +351,15 @@ class ChangePasswordView(APIView):
 
     @extend_schema(
         request=ChangePasswordSerializer,
-        responses={200: {"detail": "Password changed successfully"}},
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="ChangePasswordResponse",
+                    fields={"detail": serializers.CharField()},
+                ),
+                description="Password changed successfully",
+            )
+        },
         tags=["User"],
         summary="Смена пароля",
         description="Изменить пароль аккаунта. Требует старый пароль для подтверждения."
@@ -466,7 +505,16 @@ class UpdateProfileView(APIView):
                 return None, "Не удалось конвертировать HEIC. Загрузите JPG/PNG." 
     
     @extend_schema(
-        responses={200: {"detail": "Photo deleted"}},
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="ProfilePhotoDeleteResponse",
+                    fields={"detail": serializers.CharField()}
+                ),
+                description="Фото профиля удалено",
+            )
+        },
         tags=["User"],
         summary="Удалить фото профиля"
     )
@@ -498,7 +546,18 @@ class DeleteAccountOTPRequestView(APIView):
 
     @extend_schema(
         request=None,
-        responses={200: {"detail": "OTP sent to phone"}},
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="DeleteAccountOTPResponse",
+                    fields={
+                        "detail": serializers.CharField(),
+                        "otp": serializers.CharField(required=False, allow_null=True),
+                    },
+                ),
+                description="OTP sent to phone",
+            )
+        },
         tags=["User"],
         summary="Запросить SMS-код для удаления аккаунта",
         description="Отправляет одноразовый код на привязанный номер. Код действует 5 минут."
@@ -663,7 +722,18 @@ class SMSRequestView(APIView):
 
     @extend_schema(
         request=SMSRequestSerializer,
-        responses={200: {"detail": "OTP sent to phone"}},
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="SMSLoginOTPResponse",
+                    fields={
+                        "detail": serializers.CharField(),
+                        "otp": serializers.CharField(required=False, allow_null=True),
+                    },
+                ),
+                description="OTP sent to phone",
+            )
+        },
         tags=["Auth"],
         summary="Запрос кода входа в SMS (как Ozon)"
     )

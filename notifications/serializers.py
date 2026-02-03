@@ -1,8 +1,10 @@
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Optional
 
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
-from .models import Notification
+from .models import Notification, NotificationSettings
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -37,12 +39,14 @@ class NotificationSerializer(serializers.ModelSerializer):
             "old_price",
         )
 
-    def get_card_id(self, obj):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_card_id(self, obj) -> Optional[str]:
         if not obj.card_id:
             return None
         return str(obj.card_id)
 
-    def get_image_url(self, obj):
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_image_url(self, obj) -> Optional[str]:
         card = getattr(obj, "card", None)
         if not card:
             return None
@@ -63,24 +67,22 @@ class NotificationSerializer(serializers.ModelSerializer):
         decimal_value = Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         return int(decimal_value)
 
-    def get_price(self, obj):
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_price(self, obj) -> Optional[int]:
         card = getattr(obj, "card", None)
         if not card or card.price is None:
             return None
         return self._to_int(card.price)
 
-    def get_old_price(self, obj):
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_old_price(self, obj) -> Optional[int]:
         if obj.old_price is None:
             return None
-
-        price_value = None
-        if obj.card and obj.card.price is not None:
-            price_value = Decimal(str(obj.card.price))
-
         old_price_decimal = Decimal(str(obj.old_price))
-
-        # Only return old_price if it is greater than current price when price is known
-        if price_value is not None and old_price_decimal <= price_value:
-            return None
-
         return int(old_price_decimal.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+class NotificationSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationSettings
+        fields = ("enabled",)

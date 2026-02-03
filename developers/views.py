@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, inline_serializer
+from rest_framework import serializers
 
 from .models import Developer, Subscription
 from .serializers import DeveloperSerializer, SubscriptionSerializer, SubscriptionListSerializer
@@ -18,9 +20,27 @@ class SubscribeAPIView(generics.GenericAPIView):
         summary="Подписка на застройщика",
         description="POST — подписка, DELETE — отписка. Возвращает сообщение и код состояния.",
         responses={
-            201: {"application/json": {"example": {"detail": "Подписка оформлена"}}},
-            200: {"application/json": {"example": {"detail": "Подписка отменена"}}},
-            400: {"application/json": {"example": {"detail": "Уже подписан"}}},
+            201: OpenApiResponse(
+                response=inline_serializer(
+                    name="SubscriptionCreatedResponse",
+                    fields={"detail": serializers.CharField()},
+                ),
+                description="Подписка оформлена",
+            ),
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="SubscriptionCancelledResponse",
+                    fields={"detail": serializers.CharField()},
+                ),
+                description="Подписка отменена",
+            ),
+            400: OpenApiResponse(
+                response=inline_serializer(
+                    name="SubscriptionAlreadyResponse",
+                    fields={"detail": serializers.CharField()},
+                ),
+                description="Уже подписан",
+            ),
         }
     )
     def post(self, request, developer_id):
