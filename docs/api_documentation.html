@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dream House API Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 40px 20px;
+            background: #f8f9fa;
+        }
+        h1 { color: #2c3e50; margin-bottom: 30px; border-bottom: 3px solid #3498db; padding-bottom: 15px; }
+        h2 { color: #34495e; margin: 40px 0 20px; border-left: 4px solid #3498db; padding-left: 15px; }
+        h3 { color: #7f8c8d; margin: 25px 0 15px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0 25px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 15px; text-align: left; border: 1px solid #e1e4e8; }
+        th { background: #3498db; color: white; font-weight: 600; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        tr:hover { background: #e8f4f8; }
+        code { background: #f1f3f5; padding: 2px 8px; border-radius: 4px; font-family: 'Monaco', 'Consolas', monospace; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 8px; overflow-x: auto; margin: 15px 0; }
+        pre code { background: none; color: #ecf0f1; padding: 0; }
+        .endpoint { background: #27ae60; color: white; padding: 3px 10px; border-radius: 4px; font-weight: bold; margin-right: 10px; }
+        .method { display: inline-block; padding: 3px 10px; border-radius: 4px; font-weight: bold; margin-right: 10px; font-size: 12px; }
+        .get { background: #3498db; color: white; }
+        .post { background: #27ae60; color: white; }
+        .delete { background: #e74c3c; color: white; }
+        hr { border: none; border-top: 1px solid #e1e4e8; margin: 40px 0; }
+        .toc { background: white; padding: 25px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .toc ul { list-style: none; }
+        .toc li { margin: 8px 0; }
+        .toc a { color: #3498db; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        @media print {
+            body { background: white; max-width: none; }
+            .toc { page-break-after: always; }
+            h2 { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+    <h1>🏠 Dream House API Documentation</h1>
+    
+    <div class="toc">
+        <h3>Содержание</h3>
+        <ul>
+            <li><a href="#cards">1. Карточки недвижимости</a></li>
+            <li><a href="#filters">2. Фильтры</a></li>
+            <li><a href="#developers">3. Застройщики</a></li>
+            <li><a href="#examples">4. Примеры запросов</a></li>
+        </ul>
+    </div>
+    
+    <hr>
+    
+    <h2 id="cards">📋 Карточки недвижимости</h2>
+    
+    <h3>Базовый URL</h3>
+    <pre><code>GET /api/cards/
+GET /api/cards/{id}/</code></pre>
+    
+    <h3>Поля карточки</h3>
+    <table>
+        <tr><th>Поле</th><th>Тип</th><th>Описание</th></tr>
+        <tr><td><code>id</code></td><td>integer</td><td>Уникальный идентификатор</td></tr>
+        <tr><td><code>title</code></td><td>string</td><td>Название объекта</td></tr>
+        <tr><td><code>address</code></td><td>string</td><td>Адрес</td></tr>
+        <tr><td><code>description</code></td><td>string</td><td>Описание</td></tr>
+        <tr><td><code>price</code></td><td>decimal</td><td>Цена (₽)</td></tr>
+        <tr><td><code>price_metr</code></td><td>decimal</td><td>Цена за м² (вычисляемое)</td></tr>
+        <tr><td><code>phone</code></td><td>string</td><td>Телефон застройщика</td></tr>
+        <tr><td><code>rooms</code></td><td>integer</td><td>Количество комнат</td></tr>
+        <tr><td><code>area</code></td><td>decimal</td><td>Площадь (м²)</td></tr>
+        <tr><td><code>city</code></td><td>integer</td><td>Город (см. справочник)</td></tr>
+        <tr><td><code>complex_type</code></td><td>string</td><td>Тип комплекса</td></tr>
+        <tr><td><code>house_type</code></td><td>string</td><td>Тип дома</td></tr>
+        <tr><td><code>category</code></td><td>string</td><td>Категория</td></tr>
+        <tr><td><code>floors_total</code></td><td>integer</td><td>Этажность</td></tr>
+        <tr><td><code>elevator</code></td><td>string</td><td>Тип лифта</td></tr>
+        <tr><td><code>parking</code></td><td>string</td><td>Парковка</td></tr>
+        <tr><td><code>balcony</code></td><td>boolean</td><td>Наличие балкона</td></tr>
+        <tr><td><code>loggia</code></td><td>boolean</td><td>Наличие лоджии</td></tr>
+        <tr><td><code>finishing</code></td><td>string</td><td>Отделка</td></tr>
+        <tr><td><code>ceiling_height</code></td><td>decimal</td><td>Высота потолков (м)</td></tr>
+        <tr><td><code>latitude</code></td><td>float</td><td>Широта</td></tr>
+        <tr><td><code>longitude</code></td><td>float</td><td>Долгота</td></tr>
+        <tr><td><code>rating</code></td><td>decimal</td><td>Рейтинг (0-5)</td></tr>
+        <tr><td><code>developer</code></td><td>object</td><td>Застройщик</td></tr>
+        <tr><td><code>images</code></td><td>array</td><td>Фотографии</td></tr>
+        <tr><td><code>floor_plans</code></td><td>array</td><td>Планировки</td></tr>
+        <tr><td><code>is_favorite</code></td><td>boolean</td><td>В избранном</td></tr>
+    </table>
+    
+    <h3>Справочник: Города (city)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>1</code></td><td>Махачкала</td></tr>
+        <tr><td><code>2</code></td><td>Каспийск</td></tr>
+        <tr><td><code>3</code></td><td>Дербент</td></tr>
+        <tr><td><code>4</code></td><td>Избербаш</td></tr>
+    </table>
+    
+    <h3>Справочник: Тип комплекса (complex_type)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>residential</code></td><td>Жилой комплекс</td></tr>
+        <tr><td><code>apart</code></td><td>Апарт-комплекс</td></tr>
+    </table>
+    
+    <h3>Справочник: Тип дома (house_type)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>brick</code></td><td>Кирпичный</td></tr>
+        <tr><td><code>panel</code></td><td>Панельный</td></tr>
+        <tr><td><code>monolith</code></td><td>Монолитный</td></tr>
+        <tr><td><code>brick_monolith</code></td><td>Кирпично-монолитный</td></tr>
+        <tr><td><code>solid_monolith</code></td><td>Цельно-монолитный</td></tr>
+    </table>
+    
+    <h3>Справочник: Категория (category)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>flat</code></td><td>Квартира</td></tr>
+        <tr><td><code>new_building</code></td><td>Новостройка</td></tr>
+        <tr><td><code>secondary</code></td><td>Вторичное</td></tr>
+    </table>
+    
+    <h3>Справочник: Лифт (elevator)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>none</code></td><td>Нет</td></tr>
+        <tr><td><code>passenger</code></td><td>Пассажирский</td></tr>
+        <tr><td><code>cargo</code></td><td>Грузовой</td></tr>
+        <tr><td><code>cargo_passenger</code></td><td>Грузопассажирский</td></tr>
+        <tr><td><code>passenger_and_cargo</code></td><td>Пассажирский и грузовой</td></tr>
+    </table>
+    
+    <h3>Справочник: Парковка (parking)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>none</code></td><td>Нет</td></tr>
+        <tr><td><code>underground</code></td><td>Подземная</td></tr>
+        <tr><td><code>ground</code></td><td>Наземная</td></tr>
+        <tr><td><code>two_level</code></td><td>Двухуровневая</td></tr>
+    </table>
+    
+    <h3>Справочник: Отделка (finishing)</h3>
+    <table>
+        <tr><th>Значение</th><th>Название</th></tr>
+        <tr><td><code>none</code></td><td>Без отделки</td></tr>
+        <tr><td><code>with_finish</code></td><td>С отделкой</td></tr>
+    </table>
+    
+    <hr>
+    
+    <h2 id="filters">🔍 Фильтры</h2>
+    
+    <h3>Базовый URL</h3>
+    <pre><code>GET /api/cards/?{параметры}</code></pre>
+    
+    <h3>Текстовый поиск</h3>
+    <table>
+        <tr><th>Параметр</th><th>Тип</th><th>Описание</th></tr>
+        <tr><td><code>search</code></td><td>string</td><td>Поиск по названию, описанию, адресу</td></tr>
+    </table>
+    
+    <h3>Фильтры по выбору</h3>
+    <table>
+        <tr><th>Параметр</th><th>Тип</th><th>Описание</th></tr>
+        <tr><td><code>complex_type</code></td><td>string</td><td>Тип комплекса (residential, apart)</td></tr>
+        <tr><td><code>house_type</code></td><td>string</td><td>Тип дома</td></tr>
+        <tr><td><code>city</code></td><td>integer</td><td>Город (1, 2, 3, 4)</td></tr>
+        <tr><td><code>developer</code></td><td>integer</td><td>ID застройщика</td></tr>
+        <tr><td><code>category</code></td><td>string</td><td>Категория</td></tr>
+        <tr><td><code>finishing</code></td><td>string</td><td>Отделка</td></tr>
+        <tr><td><code>elevator</code></td><td>string</td><td>Лифт (можно несколько через &amp;)</td></tr>
+        <tr><td><code>parking</code></td><td>string</td><td>Парковка</td></tr>
+    </table>
+    
+    <h3>Булевые фильтры</h3>
+    <table>
+        <tr><th>Параметр</th><th>Тип</th><th>Описание</th></tr>
+        <tr><td><code>balcony</code></td><td>boolean</td><td>Наличие балкона (true/false)</td></tr>
+        <tr><td><code>loggia</code></td><td>boolean</td><td>Наличие лоджии (true/false)</td></tr>
+    </table>
+    
+    <h3>Числовые диапазоны</h3>
+    <table>
+        <tr><th>Параметр</th><th>Тип</th><th>Описание</th></tr>
+        <tr><td><code>price_min</code></td><td>number</td><td>Минимальная цена (₽)</td></tr>
+        <tr><td><code>price_max</code></td><td>number</td><td>Максимальная цена (₽)</td></tr>
+        <tr><td><code>rooms_min</code></td><td>integer</td><td>Минимум комнат</td></tr>
+        <tr><td><code>rooms_max</code></td><td>integer</td><td>Максимум комнат</td></tr>
+        <tr><td><code>area_min</code></td><td>number</td><td>Минимальная площадь (м²)</td></tr>
+        <tr><td><code>area_max</code></td><td>number</td><td>Максимальная площадь (м²)</td></tr>
+        <tr><td><code>floors_min</code></td><td>integer</td><td>Минимум этажей</td></tr>
+        <tr><td><code>floors_max</code></td><td>integer</td><td>Максимум этажей</td></tr>
+        <tr><td><code>price_per_sqm_min</code></td><td>number</td><td>Мин. цена за м²</td></tr>
+        <tr><td><code>price_per_sqm_max</code></td><td>number</td><td>Макс. цена за м²</td></tr>
+        <tr><td><code>ceiling_height_min</code></td><td>number</td><td>Мин. высота потолков (м)</td></tr>
+        <tr><td><code>ceiling_height_max</code></td><td>number</td><td>Макс. высота потолков (м)</td></tr>
+    </table>
+    
+    <hr>
+    
+    <h2 id="developers">🏗️ Застройщики</h2>
+    
+    <h3>Эндпоинты</h3>
+    <table>
+        <tr><th>Метод</th><th>URL</th><th>Описание</th></tr>
+        <tr><td><span class="method get">GET</span></td><td><code>/api/developers/</code></td><td>Список застройщиков</td></tr>
+        <tr><td><span class="method get">GET</span></td><td><code>/api/developers/{id}/</code></td><td>Детали застройщика</td></tr>
+        <tr><td><span class="method post">POST</span></td><td><code>/api/developers/{id}/subscribe/</code></td><td>Подписаться</td></tr>
+        <tr><td><span class="method delete">DELETE</span></td><td><code>/api/developers/{id}/unsubscribe/</code></td><td>Отписаться</td></tr>
+        <tr><td><span class="method get">GET</span></td><td><code>/api/developers/subscriptions/</code></td><td>Мои подписки</td></tr>
+    </table>
+    
+    <h3>Поля застройщика</h3>
+    <table>
+        <tr><th>Поле</th><th>Тип</th><th>Описание</th></tr>
+        <tr><td><code>id</code></td><td>integer</td><td>Уникальный ID</td></tr>
+        <tr><td><code>name</code></td><td>string</td><td>Название компании</td></tr>
+        <tr><td><code>phone</code></td><td>string</td><td>Телефон (по умолчанию: 92-62-66)</td></tr>
+        <tr><td><code>logo</code></td><td>string</td><td>URL логотипа</td></tr>
+        <tr><td><code>cards</code></td><td>array</td><td>Карточки застройщика</td></tr>
+        <tr><td><code>is_subscribed</code></td><td>boolean</td><td>Подписан ли текущий пользователь</td></tr>
+    </table>
+    
+    <h3>Пример ответа</h3>
+    <pre><code>{
+  "id": 1,
+  "name": "Dream Development",
+  "phone": "92-62-66",
+  "logo": "/media/developers/logos/dream.png",
+  "is_subscribed": true,
+  "cards": [...]
+}</code></pre>
+    
+    <hr>
+    
+    <h2 id="examples">📝 Примеры запросов</h2>
+    
+    <h3>Поиск квартир в Махачкале до 5 млн</h3>
+    <pre><code>GET /api/cards/?city=1&price_max=5000000</code></pre>
+    
+    <h3>Двухкомнатные квартиры с лифтом</h3>
+    <pre><code>GET /api/cards/?rooms_min=2&rooms_max=2&elevator=passenger&elevator=cargo_passenger</code></pre>
+    
+    <h3>Новостройки с отделкой</h3>
+    <pre><code>GET /api/cards/?category=new_building&finishing=with_finish</code></pre>
+    
+    <h3>Поиск по тексту</h3>
+    <pre><code>GET /api/cards/?search=центр</code></pre>
+    
+    <h3>Квартиры конкретного застройщика</h3>
+    <pre><code>GET /api/cards/?developer=5</code></pre>
+    
+    <h3>Фильтр по цене за метр</h3>
+    <pre><code>GET /api/cards/?price_per_sqm_min=50000&price_per_sqm_max=100000</code></pre>
+    
+    <h3>Комбинированный запрос</h3>
+    <pre><code>GET /api/cards/?city=1&rooms_min=1&rooms_max=3&price_max=10000000&house_type=monolith&balcony=true</code></pre>
+    
+    <hr>
+    
+    <h2>📄 Пагинация</h2>
+    <table>
+        <tr><th>Параметр</th><th>Описание</th></tr>
+        <tr><td><code>page</code></td><td>Номер страницы (с 1)</td></tr>
+        <tr><td><code>page_size</code></td><td>Размер страницы (по умолчанию 10)</td></tr>
+    </table>
+    
+    <h3>Пример ответа</h3>
+    <pre><code>{
+  "count": 150,
+  "next": "http://api.example.com/cards/?page=2",
+  "previous": null,
+  "results": [...]
+}</code></pre>
+    
+    <hr>
+    
+    <h2>🔐 Авторизация</h2>
+    <p>Большинство эндпоинтов требуют JWT токен:</p>
+    <pre><code>Authorization: Bearer {access_token}</code></pre>
+    
+    <h3>Получение токена</h3>
+    <pre><code>POST /api/users/token/
+{
+  "phone_number": "+79991234567",
+  "password": "your_password"
+}</code></pre>
+    
+    <hr>
+    <p style="text-align: center; color: #7f8c8d; margin-top: 40px;">
+        <em>Документация актуальна на февраль 2026</em><br>
+        Dream House API v1.0
+    </p>
+</body>
+</html>
