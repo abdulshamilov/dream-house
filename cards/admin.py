@@ -1,9 +1,9 @@
 from django.contrib import admin
 from django.db import transaction
 from .models import (
-    Card, CardImage, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,  # 🔑 НОВОЕ: ReviewLike
+    Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,
     CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
-    CardDocumentList, ViewHistory, Promotion, PromotionItem  # 🔑 НОВЫЕ
+    CardDocumentList, ViewHistory, Promotion, PromotionItem
 )
 
 # 🔹 Inlines для связанных моделей
@@ -11,6 +11,13 @@ class CardImageInline(admin.TabularInline):
     model = CardImage
     extra = 1
     max_num = 15
+
+class CardFloorPlanInline(admin.TabularInline):
+    model = CardFloorPlan
+    extra = 1
+    max_num = 10
+    verbose_name = 'Планировка'
+    verbose_name_plural = 'Планировки'
 
 class CardVideoInline(admin.TabularInline):
     model = CardVideo
@@ -54,21 +61,22 @@ class PromotionItemInline(admin.TabularInline):
 @admin.register(Card)
 class CardAdmin(admin.ModelAdmin):
     list_display = [
-        'title', 'owner', 'price', 'rooms', 'city', 'house_type',
-        'category', 'building_material', 'floors_total', 'elevator', 'parking',
+        'title', 'price', 'rooms', 'city', 'complex_type', 'house_type',
+        'category', 'floors_total', 'elevator', 'parking',
         'balcony', 'loggia', 'finishing',
         'rating', 'rating_count', 'created_at'
     ]
     list_editable = [
-        'price', 'rooms', 'city', 'house_type', 'category', 'building_material',
+        'price', 'rooms', 'city', 'complex_type', 'house_type', 'category',
         'floors_total', 'elevator', 'parking', 'balcony', 'loggia', 'finishing'
     ]
     search_fields = ['title', 'address', 'description']
     list_filter = [
-        'city', 'house_type', 'category', 'building_material', 'finishing',
+        'city', 'complex_type', 'house_type', 'category', 'finishing',
         'floors_total', 'elevator', 'parking', 'balcony', 'loggia'
     ]
-    inlines = [CardImageInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
+    exclude = ['owner']  # Скрыть owner в форме редактирования
+    inlines = [CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
     actions = ['duplicate_cards']
     actions_on_top = True
     actions_on_bottom = True

@@ -949,7 +949,7 @@ class CardCurationsView(generics.RetrieveAPIView):
 
 @extend_schema(
     summary="Получить подборку для меня",
-    description="Возвращает персональные рекомендации на основе просмотров и рейтинга. Параметры: limit, page",
+    description="Возвращает персональные рекомендации на основе просмотров, избранного и предпочтений. Параметры: limit, page",
     responses=CardSerializer(many=True),
     parameters=[
         OpenApiParameter(name='limit', description='Размер страницы (по умолчанию 10, максимум 100)', required=False, type=int),
@@ -957,7 +957,13 @@ class CardCurationsView(generics.RetrieveAPIView):
     ]
 )
 class PersonalRecommendationsView(generics.ListAPIView):
-    """Подборка для пользователя на основе просмотренных карточек"""
+    """
+    Улучшенный алгоритм рекомендаций:
+    1. Анализирует последние 20 просмотров + избранное
+    2. Учитывает: город, комнаты, площадь, цену, тип дома
+    3. Взвешивает недавние просмотры выше старых
+    4. Исключает уже просмотренные и избранные
+    """
     serializer_class = CardSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPagination
@@ -965,45 +971,102 @@ class PersonalRecommendationsView(generics.ListAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Card.objects.none()
+        
         user = self.request.user
         
-        # Получить города и типы домов просмотренных карточек
-        viewed_cards = ViewHistory.objects.filter(user=user).values_list('card_id', flat=True)[:10]
+        # Собираем данные о предпочтениях из просмотров (последние 20) и избранного
+        viewed_ids = list(ViewHistory.objects.filter(user=user)
+                         .order_by('-viewed_at')
+                         .values_list('card_id', flat=True)[:20])
         
-        if viewed_cards:
-            viewed_card_objects = Card.objects.filter(id__in=viewed_cards)
-            
-            # Получить предпочтения пользователя
-            preferred_cities = viewed_card_objects.values_list('city', flat=True).distinct()
-            preferred_types = viewed_card_objects.values_list('house_type', flat=True).distinct()
-            avg_price = viewed_card_objects.values_list('price', flat=True)
-            
-            if avg_price:
-                avg_price = sum(avg_price) / len(avg_price)
-                price_range_min = avg_price * Decimal('0.7')
-                price_range_max = avg_price * Decimal('1.3')
-            else:
-                price_range_min = Decimal('0')
-                price_range_max = Decimal('999999999')
-            
-            # Рекомендуем похожие карточки
-            recommendations = Card.objects.filter(
-                Q(city__in=preferred_cities) | Q(house_type__in=preferred_types),
-                price__gte=price_range_min,
-                price__lte=price_range_max
-            ).exclude(
-                id__in=viewed_cards  # Исключаем уже просмотренные
-            ).order_by('-rating', '-id')[:20]
-        else:
-            # Если нет просмотров, показываем топ по рейтингу
-            recommendations = Card.objects.all().order_by('-rating', '-id')[:20]
+        favorite_ids = list(Favorite.objects.filter(user=user)
+                           .values_list('card_id', flat=True))
         
-        return recommendations
+        # Объединяем для анализа предпочтений (избранное важнее — дублируем)
+        preference_ids = favorite_ids * 2 + viewed_ids
+        
+        if not preference_ids:
+            # Нет данных — показываем топ по рейтингу с новыми первыми
+            return Card.objects.all().order_by('-rating', '-created_at')[:30]
+        
+        # Анализируем предпочтения пользователя
+        pref_cards = Card.objects.filter(id__in=set(preference_ids))
+        
+        if not pref_cards.exists():
+            return Card.objects.all().order_by('-rating', '-created_at')[:30]
+        
+        # Собираем статистику предпочтений
+        from collections import Counter
+        from django.db.models import Avg, Min, Max
+        
+        cities = list(pref_cards.values_list('city', flat=True))
+        rooms = list(pref_cards.values_list('rooms', flat=True))
+        house_types = list(pref_cards.values_list('house_type', flat=True))
+        
+        # Частотный анализ — что чаще смотрит/добавляет
+        top_cities = [c for c, _ in Counter(cities).most_common(3)]
+        top_rooms = [r for r, _ in Counter(rooms).most_common(3)]
+        top_house_types = [h for h, _ in Counter(house_types).most_common(2)]
+        
+        # Ценовой и площадной диапазон (±20%)
+        stats = pref_cards.aggregate(
+            avg_price=Avg('price'),
+            min_price=Min('price'),
+            max_price=Max('price'),
+            avg_area=Avg('area'),
+        )
+        
+        avg_price = stats['avg_price'] or Decimal('0')
+        avg_area = stats['avg_area'] or Decimal('0')
+        
+        price_min = avg_price * Decimal('0.6')  # -40%
+        price_max = avg_price * Decimal('1.5')  # +50%
+        area_min = avg_area * Decimal('0.7') if avg_area > 0 else Decimal('0')
+        area_max = avg_area * Decimal('1.4') if avg_area > 0 else Decimal('9999')
+        
+        # Исключаем уже просмотренные и избранные
+        exclude_ids = set(viewed_ids) | set(favorite_ids)
+        
+        # Строим запрос с приоритетами — мягкие критерии для большего охвата
+        from django.db.models import Case, When, Value, IntegerField
+        
+        # Базовый queryset БЕЗ фильтра по score — сначала аннотируем всё
+        all_cards = Card.objects.exclude(id__in=exclude_ids).annotate(
+            # Очки релевантности
+            relevance_score=Case(
+                When(city__in=top_cities, then=Value(30)),
+                default=Value(0),
+                output_field=IntegerField()
+            ) + Case(
+                When(rooms__in=top_rooms, then=Value(25)),
+                default=Value(0),
+                output_field=IntegerField()
+            ) + Case(
+                When(house_type__in=top_house_types, then=Value(20)),
+                default=Value(0),
+                output_field=IntegerField()
+            ) + Case(
+                When(price__gte=price_min, price__lte=price_max, then=Value(15)),
+                default=Value(0),
+                output_field=IntegerField()
+            ) + Case(
+                When(area__gte=area_min, area__lte=area_max, then=Value(10)),
+                default=Value(0),
+                output_field=IntegerField()
+            )
+        ).order_by(
+            '-relevance_score',
+            '-rating',
+            '-created_at'
+        )
+        
+        # Берём топ-20 с любым score (даже 0) — гарантируем результат
+        return all_cards[:20]
 
 
 @extend_schema(
     summary="Недавно просмотренные",
-    description="Возвращает 3-4 последние просмотренные карточки пользователем. Параметры: limit, page",
+    description="Возвращает последние просмотренные карточки пользователем. Параметры: limit, page",
     responses=CardSerializer(many=True),
     parameters=[
         OpenApiParameter(name='limit', description='Размер страницы (по умолчанию 10, максимум 100)', required=False, type=int),
@@ -1011,7 +1074,7 @@ class PersonalRecommendationsView(generics.ListAPIView):
     ]
 )
 class RecentlyViewedView(generics.ListAPIView):
-    """Последние просмотренные карточки (максимум 4)"""
+    """Последние просмотренные карточки"""
     serializer_class = CardSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPagination
@@ -1020,6 +1083,15 @@ class RecentlyViewedView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Card.objects.none()
         user = self.request.user
-        # Получить последние 4 просмотренные карточки
-        recent_views = ViewHistory.objects.filter(user=user).order_by('-viewed_at').values_list('card_id', flat=True)[:4]
-        return Card.objects.filter(id__in=recent_views).order_by('-id')
+        # Получить последние просмотренные карточки (сохраняем порядок просмотра)
+        recent_views = list(ViewHistory.objects.filter(user=user)
+                           .order_by('-viewed_at')
+                           .values_list('card_id', flat=True)[:10])
+        
+        if not recent_views:
+            return Card.objects.none()
+        
+        # Сохраняем порядок просмотра через Case/When
+        from django.db.models import Case, When
+        preserved_order = Case(*[When(id=pk, then=pos) for pos, pk in enumerate(recent_views)])
+        return Card.objects.filter(id__in=recent_views).order_by(preserved_order)

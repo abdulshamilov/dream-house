@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Характеристики карточки квартиры</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --text: #e6edf3;
+      --muted: #9da7b3;
+      --accent: #3fa9f5;
+      --border: #242c37;
+      --code: #0b1622;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 18px 64px;
+    }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1, h2, h3 { margin: 0 0 12px; font-weight: 700; letter-spacing: 0.2px; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 22px; margin-top: 28px; border-left: 4px solid var(--accent); padding-left: 10px; }
+    h3 { font-size: 17px; margin-top: 20px; color: var(--accent); }
+    p { margin: 0 0 12px; color: var(--muted); }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+    .chip { display: inline-block; padding: 6px 10px; border-radius: 8px; background: #101723; color: var(--muted); border: 1px solid var(--border); margin: 4px 6px 4px 0; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    th { color: var(--text); }
+    td { color: var(--muted); }
+    code { background: var(--code); padding: 2px 6px; border-radius: 6px; color: var(--text); border: 1px solid var(--border); }
+    .pill { display: inline-block; padding: 6px 12px; background: #152033; color: var(--text); border-radius: 20px; border: 1px solid var(--border); font-size: 13px; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Характеристики карточки квартиры</h1>
+    <p class="muted">Источник данных: модель <code>Card</code> и сериализатор <code>CardSerializer</code> (Django/DRF). Все числовые цены — в рублях.</p>
+
+    <section class="panel">
+      <h2>Быстрый обзор</h2>
+      <div class="grid">
+        <div>
+          <h3>Базовое</h3>
+          <p class="muted">id, title, address, description, created_at</p>
+        </div>
+        <div>
+          <h3>Цена</h3>
+          <p class="muted">price, price_metr (расчёт: price / area)</p>
+        </div>
+        <div>
+          <h3>Планировка</h3>
+          <p class="muted">rooms, area, house_type, category</p>
+        </div>
+        <div>
+          <h3>Дом</h3>
+          <p class="muted">building_material, floors_total, elevator, parking</p>
+        </div>
+        <div>
+          <h3>Комфорт</h3>
+          <p class="muted">balcony, loggia, finishing, ceiling_height</p>
+        </div>
+        <div>
+          <h3>Локация</h3>
+          <p class="muted">city (enum), latitude, longitude</p>
+        </div>
+        <div>
+          <h3>Девелопер</h3>
+          <p class="muted">id, name, logo, is_subscribed</p>
+        </div>
+        <div>
+          <h3>Медиа</h3>
+          <p class="muted">images[], videos[], documents[], document_lists[]</p>
+        </div>
+        <div>
+          <h3>Соц‑сигналы</h3>
+          <p class="muted">rating, rating_count, reviews[], questions[]</p>
+        </div>
+        <div>
+          <h3>Избранное</h3>
+          <p class="muted">is_favorite (для текущего пользователя)</p>
+        </div>
+        <div>
+          <h3>Подборки</h3>
+          <p class="muted">list_curations (список ID похожих карточек)</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Поля карточки</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Поле</th>
+            <th>Тип</th>
+            <th>Описание</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>id</td><td>int</td><td>Идентификатор карточки</td></tr>
+          <tr><td>title</td><td>string</td><td>Заголовок объявления</td></tr>
+          <tr><td>address</td><td>string</td><td>Адрес объекта</td></tr>
+          <tr><td>description</td><td>string</td><td>Описание</td></tr>
+          <tr><td>price</td><td>decimal</td><td>Цена в рублях</td></tr>
+          <tr><td>price_metr</td><td>float</td><td>Цена за м² (price / area)</td></tr>
+          <tr><td>rooms</td><td>int</td><td>Количество комнат</td></tr>
+          <tr><td>city</td><td>enum</td><td>1 Махачкала, 2 Каспийск, 3 Дербент, 4 Избербаш</td></tr>
+          <tr><td>house_type</td><td>enum</td><td>private, apartment</td></tr>
+          <tr><td>area</td><td>decimal</td><td>Площадь, м²</td></tr>
+          <tr><td>building_material</td><td>enum</td><td>brick, panel, monolith, brick_monolith, solid_monolith</td></tr>
+          <tr><td>category</td><td>enum</td><td>flat, new_building, secondary</td></tr>
+          <tr><td>floors_total</td><td>int</td><td>Этажность дома</td></tr>
+          <tr><td>elevator</td><td>enum</td><td>none, passenger, cargo, passenger_and_cargo</td></tr>
+          <tr><td>parking</td><td>enum</td><td>none, underground, ground, two_level</td></tr>
+          <tr><td>balcony</td><td>bool</td><td>Наличие балкона</td></tr>
+          <tr><td>loggia</td><td>bool</td><td>Наличие лоджии</td></tr>
+          <tr><td>finishing</td><td>enum</td><td>none, with_finish</td></tr>
+          <tr><td>ceiling_height</td><td>decimal</td><td>Высота потолков, м</td></tr>
+          <tr><td>latitude</td><td>float</td><td>Широта</td></tr>
+          <tr><td>longitude</td><td>float</td><td>Долгота</td></tr>
+          <tr><td>rating</td><td>decimal</td><td>Средний рейтинг</td></tr>
+          <tr><td>rating_count</td><td>int</td><td>Количество оценок</td></tr>
+          <tr><td>created_at</td><td>timestamp</td><td>Дата создания карточки</td></tr>
+          <tr><td>is_favorite</td><td>bool</td><td>Признак избранного для текущего пользователя</td></tr>
+          <tr><td>developer</td><td>object</td><td>Данные застройщика (id, name, logo, is_subscribed)</td></tr>
+          <tr><td>images</td><td>array</td><td>Список изображений (id, image)</td></tr>
+          <tr><td>videos</td><td>array</td><td>Список видео (id, video)</td></tr>
+          <tr><td>documents</td><td>array</td><td>Файлы (id, title, file, uploaded_at)</td></tr>
+          <tr><td>document_lists</td><td>array</td><td>Подборки документов (id, name, files[])</td></tr>
+          <tr><td>reviews</td><td>array</td><td>Отзывы с лайками и дополнительными полями UI</td></tr>
+          <tr><td>questions</td><td>array</td><td>Вопросы и ответы</td></tr>
+          <tr><td>list_curations</td><td>array</td><td>IDs похожих карточек (JSON из модели)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Девелопер</h2>
+      <p class="muted">Вложенный объект из <code>DeveloperInCardSerializer</code>.</p>
+      <div class="chip">id</div>
+      <div class="chip">name</div>
+      <div class="chip">logo (URL)</div>
+      <div class="chip">is_subscribed (bool)</div>
+    </section>
+
+    <section class="panel">
+      <h2>Медиа</h2>
+      <h3>images</h3><p class="muted">[{ id, image }]</p>
+      <h3>videos</h3><p class="muted">[{ id, video }]</p>
+      <h3>documents</h3><p class="muted">[{ id, title, file, uploaded_at }]</p>
+      <h3>document_lists</h3><p class="muted">[{ id, name, files: [{ id, title, file, uploaded_at }] }]</p>
+    </section>
+
+    <section class="panel">
+      <h2>Отзывы</h2>
+      <p class="muted">Сериализатор <code>CardReviewSerializer</code> добавляет лайки и поля под UI.</p>
+      <div class="chip">id</div><div class="chip">user {id, name, phone_number, profile_photo}</div>
+      <div class="chip">text</div><div class="chip">rating</div><div class="chip">likes_count</div><div class="chip">is_liked</div>
+      <div class="chip">created_at</div><div class="chip">updated_at</div>
+      <div class="chip">user_name</div><div class="chip">user_avatar</div><div class="chip">comment</div>
+      <div class="chip">images</div><div class="chip">helpful_count</div><div class="chip">not_helpful_count</div><div class="chip">user_vote</div><div class="chip">developer_response</div>
+    </section>
+
+    <section class="panel">
+      <h2>Вопросы</h2>
+      <p class="muted">Сериализатор <code>CardQuestionSerializer</code>.</p>
+      <div class="chip">id</div><div class="chip">user {id, name, phone_number, profile_photo}</div>
+      <div class="chip">question</div><div class="chip">answer</div><div class="chip">created_at</div>
+    </section>
+
+    <section class="panel">
+      <h2>Избранное и рекомендации</h2>
+      <p class="muted">Поле <code>is_favorite</code> вычисляется по текущему пользователю. <code>list_curations</code> — список ID похожих карточек (JSON в модели).</p>
+    </section>
+
+    <section class="panel">
+      <h2>Локация</h2>
+      <p class="muted">Города (CITY_CHOICES): 1 Махачкала, 2 Каспийск, 3 Дербент, 4 Избербаш. Поля: latitude, longitude.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Ссылки на код</h2>
+      <p><a href="../cards/models.py" style="color: var(--accent);">cards/models.py</a> — модель Card и связанные сущности</p>
+      <p><a href="../cards/serializers.py" style="color: var(--accent);">cards/serializers.py</a> — CardSerializer, CardReviewSerializer, DeveloperInCardSerializer и др.</p>
+    </section>
+  </main>
+</body>
+</html>

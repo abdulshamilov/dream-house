@@ -8,7 +8,7 @@ class DeveloperLightSerializer(serializers.ModelSerializer):
     """Упрощенный сериализатор для списков подписок (без карточек)."""
     class Meta:
         model = Developer
-        fields = ['id', 'name', 'logo']
+        fields = ['id', 'name', 'phone', 'logo']
 
 class DeveloperSerializer(serializers.ModelSerializer):
     cards = CardSerializer(many=True, read_only=True)
@@ -16,7 +16,7 @@ class DeveloperSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Developer
-        fields = ['id', 'name', 'logo', 'cards', 'is_subscribed']
+        fields = ['id', 'name', 'phone', 'logo', 'cards', 'is_subscribed']
 
     @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):

@@ -11,12 +11,12 @@ class Card(models.Model):
         (4, 'Избербаш'),
     )
 
-    HOUSE_TYPE_CHOICES = (
-        ('private', 'Частный дом'),
-        ('apartment', 'Квартира'),
+    COMPLEX_TYPE_CHOICES = (
+        ('residential', 'Жилой комплекс'),
+        ('apart', 'Апарт-комплекс'),
     )
 
-    BUILDING_MATERIAL_CHOICES = (
+    HOUSE_TYPE_CHOICES = (
         ('brick', 'Кирпичный'),
         ('panel', 'Панельный'),
         ('monolith', 'Монолитный'),
@@ -34,6 +34,7 @@ class Card(models.Model):
         ('none', 'Нет'),
         ('passenger', 'Пассажирский'),
         ('cargo', 'Грузовой'),
+        ('cargo_passenger', 'Грузопассажирский'),
         ('passenger_and_cargo', 'Пассажирский и грузовой'),
     )
 
@@ -61,12 +62,13 @@ class Card(models.Model):
     address = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2)
+    phone = models.CharField(max_length=20, default='92-62-66', verbose_name='Телефон застройщика')
     rooms = models.PositiveIntegerField(default=1)
     city = models.IntegerField(choices=CITY_CHOICES, default=1)
-    house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='apartment')
+    complex_type = models.CharField(max_length=20, choices=COMPLEX_TYPE_CHOICES, default='residential')
+    house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='brick')
 
     area = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
-    building_material = models.CharField(max_length=50, choices=BUILDING_MATERIAL_CHOICES, default='brick')
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='flat')
     floors_total = models.PositiveIntegerField(default=1)
     elevator = models.CharField(max_length=20, choices=ELEVATOR_CHOICES, default='none')
@@ -81,7 +83,7 @@ class Card(models.Model):
         ),
         default='none'
     )
-    ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=2.50)
+    ceiling_height = models.DecimalField(max_digits=3, decimal_places=2, default=3.00)
 
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
@@ -165,6 +167,16 @@ class CardImage(models.Model):
 
     def __str__(self):
         return f"{self.card.title} Image"
+
+
+class CardFloorPlan(models.Model):
+    """Фото планировки квартиры"""
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='floor_plans')
+    image = models.ImageField(upload_to='cards/floor_plans/')
+    title = models.CharField(max_length=100, blank=True, help_text='Название планировки (опционально)')
+
+    def __str__(self):
+        return f"{self.card.title} - Планировка"
 
 
 class CardVideo(models.Model):

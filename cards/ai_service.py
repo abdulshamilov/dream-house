@@ -466,7 +466,8 @@ class AIAssistantService:
                 messages=[
                     {"role": "system", "content": self.config.system_prompt},
                     {"role": "user", "content": context}
-                ]
+                ],
+                timeout=30.0  # 30 секунд timeout
             )
 
             return {

@@ -210,3 +210,14 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# --- Channels (WebSocket) ---
+CHANNEL_LAYERS = {
+    "default": {
+        # Для продакшена использовать Redis:
+        # "BACKEND": "channels_redis.core.RedisChannelLayer",
+        # "CONFIG": {"hosts": [os.environ.get("REDIS_URL", "redis://localhost:6379")]},
+        # Для разработки — in-memory:
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}

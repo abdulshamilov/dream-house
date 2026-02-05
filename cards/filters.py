@@ -10,9 +10,10 @@ class CardFilter(django_filters.FilterSet):
         label='Поиск по названию, описанию, адресу'
     )
     
+    complex_type = django_filters.ChoiceFilter(choices=Card.COMPLEX_TYPE_CHOICES)
     house_type = django_filters.ChoiceFilter(choices=Card.HOUSE_TYPE_CHOICES)
     city = django_filters.ChoiceFilter(choices=Card.CITY_CHOICES)
-    building_material = django_filters.ChoiceFilter(choices=Card.BUILDING_MATERIAL_CHOICES)
+    developer = django_filters.NumberFilter(field_name='developer_id', label='ID застройщика')
     category = django_filters.ChoiceFilter(choices=Card.CATEGORY_CHOICES)
     finishing = django_filters.ChoiceFilter(choices=Card._meta.get_field('finishing').choices)
     balcony = django_filters.BooleanFilter(field_name='balcony')
@@ -58,7 +59,7 @@ class CardFilter(django_filters.FilterSet):
         model = Card
         fields = [
             'search',
-            'house_type', 'city', 'building_material', 'category',
+            'complex_type', 'house_type', 'city', 'developer', 'category',
             'finishing', 'balcony', 'loggia',
             'elevator', 'parking',
             'price_min', 'price_max',
@@ -78,35 +79,34 @@ class CardFilter(django_filters.FilterSet):
                 Q(address__icontains=value)
             )
         return queryset
-    
-    def filter_price_per_sqm_min(self, queryset, name, value):
-        """Фильтр минимальной цены за кв. метр"""
-        if value:
-            # Вычисляем цену за кв. метр через ExpressionWrapper
-            queryset = queryset.annotate(
-                price_per_sqm=Case(
-                    When(area__gt=0, then=ExpressionWrapper(
-                        F('price') * 1.0 / F('area'),
-                        output_field=DecimalField()
-                    )),
-                    default=Value(0),
+
+    def _annotate_price_per_sqm(self, queryset):
+        """Аннотировать queryset ценой за кв. метр (один раз)."""
+        if hasattr(queryset, '_price_per_sqm_annotated'):
+            return queryset
+        queryset = queryset.annotate(
+            price_per_sqm=Case(
+                When(area__gt=0, then=ExpressionWrapper(
+                    F('price') * 1.0 / F('area'),
                     output_field=DecimalField()
-                )
-            ).filter(price_per_sqm__gte=value)
+                )),
+                default=Value(0),
+                output_field=DecimalField()
+            )
+        )
+        queryset._price_per_sqm_annotated = True
         return queryset
-    
-    def filter_price_per_sqm_max(self, queryset, name, value):
-        """Фильтр максимальной цены за кв. метр"""
+
+    def filter_price_per_sqm_min(self, queryset, name, value):
+        """Фильтр минимальной цены за кв. метр."""
         if value:
-            # Вычисляем цену за кв. метр через ExpressionWrapper
-            queryset = queryset.annotate(
-                price_per_sqm=Case(
-                    When(area__gt=0, then=ExpressionWrapper(
-                        F('price') * 1.0 / F('area'),
-                        output_field=DecimalField()
-                    )),
-                    default=Value(0),
-                    output_field=DecimalField()
-                )
-            ).filter(price_per_sqm__lte=value)
+            queryset = self._annotate_price_per_sqm(queryset)
+            queryset = queryset.filter(price_per_sqm__gte=value)
+        return queryset
+
+    def filter_price_per_sqm_max(self, queryset, name, value):
+        """Фильтр максимальной цены за кв. метр."""
+        if value:
+            queryset = self._annotate_price_per_sqm(queryset)
+            queryset = queryset.filter(price_per_sqm__lte=value)
         return queryset

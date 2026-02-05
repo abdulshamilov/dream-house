@@ -6,12 +6,7 @@ User = settings.AUTH_USER_MODEL
 
 class Developer(models.Model):
     name = models.CharField(max_length=255)
-    created_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='developers_created'
-    )
+    phone = models.CharField(max_length=20, default='92-62-66', verbose_name='Телефон')
     logo = models.ImageField(upload_to='developers/logos/', null=True, blank=True)
     
     def __str__(self):

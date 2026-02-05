@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema_field
 
 # Local
 from .models import (
-    Card, CardImage, CardVideo, CardDocument, CallRequest,
+    Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CallRequest,
     CardReview, CardQuestion, SearchHistory, ReviewLike,
     Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
     CardDocumentList, ViewHistory, Promotion, PromotionItem
@@ -56,6 +56,13 @@ class CardImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CardImage
         fields = ['id', 'image']
+
+
+class CardFloorPlanSerializer(serializers.ModelSerializer):
+    """Сериализатор для фото планировок"""
+    class Meta:
+        model = CardFloorPlan
+        fields = ['id', 'image', 'title']
 
 
 # 🔑 НОВЫЙ: Упрощенный сериализатор для подборок карточек (быстрый результат)
@@ -233,34 +240,34 @@ class CardReviewSerializer(serializers.ModelSerializer):
 # -------------------------------
 class CardSerializer(serializers.ModelSerializer):
     images = CardImageSerializer(many=True, read_only=True)
+    floor_plans = CardFloorPlanSerializer(many=True, read_only=True)  # 🔑 Планировки
     videos = CardVideoSerializer(many=True, read_only=True)
     documents = CardDocumentSerializer(many=True, read_only=True)
-    document_lists = CardDocumentListSerializer(many=True, read_only=True)  # 🔑 НОВОЕ
+    document_lists = CardDocumentListSerializer(many=True, read_only=True)
     owner = serializers.StringRelatedField(read_only=True)
     reviews = serializers.SerializerMethodField()
     questions = CardQuestionSerializer(many=True, read_only=True)
     is_favorite = serializers.SerializerMethodField()
-    list_curations = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Подборки как объекты
+    list_curations = serializers.SerializerMethodField()
     
-    # 🔑 ИЗМЕНЕНО: Теперь отображает ID, имя и фото застройщика
     developer = DeveloperInCardSerializer(read_only=True)
-    price_metr = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Цена за кв.м
+    price_metr = serializers.SerializerMethodField()
 
     class Meta:
         model = Card
         fields = [
             'id', 'title', 'address', 'description',
-            'price', 'price_metr',  # 🔑 НОВОЕ: Цена за квадратный метр
-            'rooms', 'city', 'house_type',
-            'area', 'building_material', 'category', 'floors_total', 
+            'price', 'price_metr', 'phone',
+            'rooms', 'city', 'complex_type', 'house_type',
+            'area', 'category', 'floors_total', 
             'elevator', 'parking', 'balcony', 'loggia', 'finishing', 'ceiling_height',
             'latitude', 'longitude',
             'rating', 'rating_count',
             'owner', 
-            'developer',  # 🔑 ДОБАВЛЕНО: Теперь Developer будет сериализован полностью
-            'images', 'videos', 'documents', 'document_lists',  # 🔑 ИЗМЕНЕНО
+            'developer',
+            'images', 'floor_plans', 'videos', 'documents', 'document_lists',
             'reviews', 'questions',
-            'list_curations',  # 🔑 НОВОЕ: Подборки квартир
+            'list_curations',
             'created_at',
             'is_favorite'
         ]

@@ -28,11 +28,13 @@ def notify_developer_subscribers(sender, instance, created, **kwargs):
     subs = Subscription.objects.filter(developer=instance.developer)
 
     for sub in subs:
-        # создаём уведомление в базе
+        # создаём уведомление в базе с привязкой к карточке
         Notification.objects.create(
             user=sub.user,
-            title="Новая квартира от вашего девелопера",
-            message=f"{instance.title} — {instance.price}₽, {instance.rooms} комн."
+            card=instance,  # 🔑 Привязка к карточке для image_url/price
+            type=Notification.TYPE_SUBSCRIPTION,
+            title="Новая квартира от застройщика",
+            message=f"{instance.developer.name}: {instance.title} — {instance.price}₽, {instance.rooms} комн."
         )
 
     # Если channels установлен, отправляем WebSocket уведомление
@@ -45,8 +47,8 @@ def notify_developer_subscribers(sender, instance, created, **kwargs):
                         f"user_{sub.user.id}",
                         {
                             "type": "send_notification",
-                            "title": "Новая квартира от вашего девелопера",
-                            "message": f"{instance.title} — {instance.price}₽, {instance.rooms} комн."
+                            "title": "Новая квартира от застройщика",
+                            "message": f"{instance.developer.name}: {instance.title} — {instance.price}₽, {instance.rooms} комн."
                         }
                     )
         except Exception as e:

@@ -3,8 +3,9 @@ from .models import Developer, Subscription
 
 @admin.register(Developer)
 class DeveloperAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'logo')
-    search_fields = ('name',)
+    list_display = ('id', 'name', 'phone', 'logo')
+    list_editable = ('phone',)
+    search_fields = ('name', 'phone')
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
