@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dream House - Полная API Документация</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --border: #e1e4e8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Segoe UI', sans-serif;
+            line-height: 1.7;
+            color: #333;
+            background: #f8f9fa;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 50px 20px;
+            text-align: center;
+            border-bottom: 4px solid var(--primary);
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .toc {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 30px auto;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            columns: 2;
+            column-gap: 30px;
+        }
+
+        .toc h2 {
+            column-span: all;
+            margin-bottom: 20px;
+            color: var(--dark);
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .toc a:hover {
+            color: var(--dark);
+            text-decoration: underline;
+        }
+
+        section {
+            background: white;
+            margin: 30px auto;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: var(--dark);
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+
+        h3 {
+            color: #555;
+            margin: 25px 0 15px;
+            font-size: 1.3em;
+        }
+
+        h4 {
+            color: #777;
+            margin: 15px 0 10px;
+            font-size: 1.1em;
+        }
+
+        code {
+            background: #f1f3f5;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Monospace', monospace;
+            color: #d63384;
+            font-size: 0.95em;
+        }
+
+        pre {
+            background: var(--dark);
+            color: var(--light);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-left: 4px solid var(--primary);
+        }
+
+        pre code {
+            background: none;
+            color: var(--light);
+            padding: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        tr:hover {
+            background: #e8f4f8;
+        }
+
+        .endpoint {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+
+        .method {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-right: 10px;
+        }
+
+        .get {
+            background: #3498db;
+            color: white;
+        }
+
+        .post {
+            background: #27ae60;
+            color: white;
+        }
+
+        .delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .put {
+            background: #f39c12;
+            color: white;
+        }
+
+        .auth-required {
+            display: inline-block;
+            background: #f39c12;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+
+        .note {
+            background: #e8f4f8;
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .note strong {
+            color: var(--primary);
+        }
+
+        .example {
+            background: #f8f9fa;
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+
+        .example strong {
+            color: var(--dark);
+        }
+
+        p {
+            margin: 15px 0;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+
+            section {
+                page-break-inside: avoid;
+                box-shadow: none;
+            }
+
+            h2 {
+                page-break-before: always;
+            }
+
+            .toc {
+                page-break-after: always;
+            }
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #888;
+            font-size: 0.95em;
+            border-top: 1px solid var(--border);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🏠 Dream House API</h1>
+            <p>Полная документация всех REST API эндпоинтов</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Версия 1.0.0 • Февраль 2026 • Production</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="toc">
+            <h2>📑 Содержание</h2>
+            <ul>
+                <li><a href="#auth">🔐 Авторизация</a></li>
+                <li><a href="#cards">📋 Карточки недвижимости</a></li>
+                <li><a href="#search">🔍 Поиск и фильтрация</a></li>
+                <li><a href="#favorites">❤️ Избранное</a></li>
+                <li><a href="#reviews">💬 Отзывы и вопросы</a></li>
+                <li><a href="#history">📍 История просмотров</a></li>
+                <li><a href="#recommendations">🎯 Рекомендации</a></li>
+                <li><a href="#developers">🏗️ Застройщики</a></li>
+                <li><a href="#notifications">🔔 Уведомления</a></li>
+                <li><a href="#ai">🤖 AI Ассистент</a></li>
+                <li><a href="#references">📚 Справочники</a></li>
+            </ul>
+        </div>
+
+        <!-- АВТОРИЗАЦИЯ -->
+        <section id="auth">
+            <h2>🔐 Авторизация</h2>
+
+            <h3>Получение токена</h3>
+            <div class="endpoint">POST /api/users/token/</div>
+
+            <p>Авторизация пользователя по номеру телефона или email. Возвращает пару JWT-токенов.</p>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "phone_number": "+79991234567",
+  "password": "your_password"
+}</code></pre>
+
+            <h4>Ответ 200:</h4>
+            <pre><code>{
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
+}</code></pre>
+
+            <div class="note">
+                <strong>💡 Использование:</strong> Добавьте заголовок <code>Authorization: Bearer {access_token}</code> ко всем защищённым запросам.
+            </div>
+
+            <h3>Обновление токена</h3>
+            <div class="endpoint">POST /api/users/token/refresh/</div>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "refresh": "{refresh_token}"
+}</code></pre>
+
+            <h4>Ответ 200:</h4>
+            <pre><code>{
+  "access": "new_access_token"
+}</code></pre>
+        </section>
+
+        <!-- КАРТОЧКИ -->
+        <section id="cards">
+            <h2>📋 Карточки недвижимости</h2>
+
+            <h3>Список карточек</h3>
+            <div class="endpoint">GET /api/cards/</div>
+
+            <h4>Параметры:</h4>
+            <table>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+                <tr>
+                    <td><code>page</code></td>
+                    <td>integer</td>
+                    <td>Номер страницы (по умолчанию 1)</td>
+                </tr>
+                <tr>
+                    <td><code>page_size</code></td>
+                    <td>integer</td>
+                    <td>Размер страницы (по умолчанию 10)</td>
+                </tr>
+            </table>
+
+            <h4>Ответ 200:</h4>
+            <pre><code>{
+  "count": 150,
+  "next": "http://api.example.com/cards/?page=2",
+  "results": [
+    {
+      "id": 1,
+      "title": "ЖК Солнечный",
+      "address": "Махачкала, Мира 5",
+      "price": 5000000,
+      "price_metr": 62500.0,
+      "phone": "92-62-66",
+      "rooms": 2,
+      "area": 80.0,
+      "city": 1,
+      "rating": 4.5,
+      "developer": {
+        "id": 1,
+        "name": "ПИК",
+        "phone": "92-62-66"
+      },
+      "is_favorite": false
+    }
+  ]
+}</code></pre>
+
+            <h3>Детали карточки</h3>
+            <div class="endpoint">GET /api/cards/{id}/</div>
+
+            <h3>Оценить карточку</h3>
+            <div class="endpoint">POST /api/cards/{id}/rate/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "rating": 4.5,
+  "comment": "Отличная квартира!"
+}</code></pre>
+
+            <h3>Запросить звонок</h3>
+            <div class="endpoint">POST /api/cards/{id}/call_request/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "phone": "+79991234567",
+  "message": "Хочу посмотреть квартиру"
+}</code></pre>
+
+            <h3>Добавить видео</h3>
+            <div class="endpoint">POST /api/cards/{id}/videos/add/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <p><strong>Content-Type:</strong> multipart/form-data</p>
+
+            <h3>Получить города</h3>
+            <div class="endpoint">GET /api/cards/cities/</div>
+
+            <h4>Ответ 200:</h4>
+            <pre><code>[
+  {"id": 1, "name": "Махачкала"},
+  {"id": 2, "name": "Каспийск"},
+  {"id": 3, "name": "Дербент"},
+  {"id": 4, "name": "Избербаш"}
+]</code></pre>
+
+            <h3>Список акций</h3>
+            <div class="endpoint">GET /api/cards/promotions/</div>
+        </section>
+
+        <!-- ПОИСК И ФИЛЬТРАЦИЯ -->
+        <section id="search">
+            <h2>🔍 Поиск и фильтрация</h2>
+
+            <h3>Поиск по тексту</h3>
+            <div class="endpoint">GET /api/cards/search/?q=центр</div>
+
+            <h3>Фильтрация карточек</h3>
+            <div class="endpoint">GET /api/cards/?city=1&price_max=5000000</div>
+
+            <h4>Доступные фильтры:</h4>
+            <table>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+                <tr>
+                    <td><code>search</code></td>
+                    <td>string</td>
+                    <td>Поиск по названию/адресу</td>
+                </tr>
+                <tr>
+                    <td><code>city</code></td>
+                    <td>integer</td>
+                    <td>ID города (1, 2, 3, 4)</td>
+                </tr>
+                <tr>
+                    <td><code>complex_type</code></td>
+                    <td>string</td>
+                    <td>residential, apart</td>
+                </tr>
+                <tr>
+                    <td><code>house_type</code></td>
+                    <td>string</td>
+                    <td>brick, panel, monolith и т.д.</td>
+                </tr>
+                <tr>
+                    <td><code>price_min</code></td>
+                    <td>number</td>
+                    <td>Минимальная цена</td>
+                </tr>
+                <tr>
+                    <td><code>price_max</code></td>
+                    <td>number</td>
+                    <td>Максимальная цена</td>
+                </tr>
+                <tr>
+                    <td><code>rooms_min</code></td>
+                    <td>integer</td>
+                    <td>Минимум комнат</td>
+                </tr>
+                <tr>
+                    <td><code>rooms_max</code></td>
+                    <td>integer</td>
+                    <td>Максимум комнат</td>
+                </tr>
+                <tr>
+                    <td><code>area_min</code></td>
+                    <td>number</td>
+                    <td>Минимальная площадь (м²)</td>
+                </tr>
+                <tr>
+                    <td><code>area_max</code></td>
+                    <td>number</td>
+                    <td>Максимальная площадь (м²)</td>
+                </tr>
+                <tr>
+                    <td><code>developer</code></td>
+                    <td>integer</td>
+                    <td>ID застройщика</td>
+                </tr>
+                <tr>
+                    <td><code>balcony</code></td>
+                    <td>boolean</td>
+                    <td>true/false</td>
+                </tr>
+                <tr>
+                    <td><code>loggia</code></td>
+                    <td>boolean</td>
+                    <td>true/false</td>
+                </tr>
+            </table>
+
+            <h4>Примеры:</h4>
+            <div class="example">
+                <strong>Двухкомнатные квартиры в Махачкале до 5 млн:</strong>
+                <pre><code>GET /api/cards/?city=1&rooms_min=2&rooms_max=2&price_max=5000000</code></pre>
+            </div>
+
+            <div class="example">
+                <strong>Монолитные дома с лифтом и балконом:</strong>
+                <pre><code>GET /api/cards/?house_type=monolith&elevator=cargo_passenger&balcony=true</code></pre>
+            </div>
+        </section>
+
+        <!-- ИЗБРАННОЕ -->
+        <section id="favorites">
+            <h2>❤️ Избранное</h2>
+
+            <h3>Добавить в избранное</h3>
+            <div class="endpoint">POST /api/cards/{id}/favorite/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Удалить из избранного</h3>
+            <div class="endpoint">DELETE /api/cards/{id}/favorite/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Мои избранные карточки</h3>
+            <div class="endpoint">GET /api/cards/favorites/me/</div>
+            <span class="auth-required">Требует авторизации</span>
+        </section>
+
+        <!-- ОТЗЫВЫ И ВОПРОСЫ -->
+        <section id="reviews">
+            <h2>💬 Отзывы и вопросы</h2>
+
+            <h3>Добавить отзыв</h3>
+            <div class="endpoint">POST /api/cards/{id}/reviews/add/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "title": "Отличное место!",
+  "text": "Очень рекомендую эту квартиру",
+  "rating": 5
+}</code></pre>
+
+            <h3>Получить отзывы</h3>
+            <div class="endpoint">GET /api/cards/{id}/user-reviews/</div>
+
+            <h3>Лайк на отзыв</h3>
+            <div class="endpoint">POST /api/cards/reviews/{review_id}/like/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "vote": "like"
+}</code></pre>
+
+            <h3>Добавить вопрос</h3>
+            <div class="endpoint">POST /api/cards/{id}/questions/add/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Список вопросов</h3>
+            <div class="endpoint">GET /api/cards/questions/</div>
+
+            <h3>Ответить на вопрос</h3>
+            <div class="endpoint">POST /api/cards/questions/{id}/answer/</div>
+            <span class="auth-required">Требует авторизации</span>
+        </section>
+
+        <!-- ИСТОРИЯ -->
+        <section id="history">
+            <h2>📍 История просмотров</h2>
+
+            <h3>Отметить просмотр</h3>
+            <div class="endpoint">POST /api/cards/{card_id}/view-history/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Моя история просмотров</h3>
+            <div class="endpoint">GET /api/cards/view-history/me/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>История поиска</h3>
+            <div class="endpoint">GET /api/cards/search-history/</div>
+            <span class="auth-required">Требует авторизации</span>
+        </section>
+
+        <!-- РЕКОМЕНДАЦИИ -->
+        <section id="recommendations">
+            <h2>🎯 Рекомендации</h2>
+
+            <h3>Персональные рекомендации</h3>
+            <div class="endpoint">GET /api/cards/recommendations/for-me/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <p>На основе истории просмотров пользователя. Гарантирует минимум 20 результатов.</p>
+
+            <h3>Недавно просмотренные</h3>
+            <div class="endpoint">GET /api/cards/recent-views/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <p>10 последних просмотренных карточек в хронологическом порядке.</p>
+
+            <h3>AI Рекомендации</h3>
+            <div class="endpoint">GET /api/cards/recommendations/</div>
+            <span class="auth-required">Требует авторизации</span>
+        </section>
+
+        <!-- ЗАСТРОЙЩИКИ -->
+        <section id="developers">
+            <h2>🏗️ Застройщики</h2>
+
+            <h3>Список застройщиков</h3>
+            <div class="endpoint">GET /api/developers/</div>
+
+            <h3>Детали застройщика</h3>
+            <div class="endpoint">GET /api/developers/{id}/</div>
+
+            <h3>Карточки застройщика</h3>
+            <div class="endpoint">GET /api/developers/{developer_id}/cards/</div>
+
+            <h3>Подписаться</h3>
+            <div class="endpoint">POST /api/developers/{developer_id}/subscribe/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Отписаться</h3>
+            <div class="endpoint">DELETE /api/developers/{developer_id}/subscribe/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Мои подписки</h3>
+            <div class="endpoint">GET /api/developers/me/subscriptions/</div>
+            <span class="auth-required">Требует авторизации</span>
+        </section>
+
+        <!-- УВЕДОМЛЕНИЯ -->
+        <section id="notifications">
+            <h2>🔔 Уведомления</h2>
+
+            <h3>Список уведомлений</h3>
+            <div class="endpoint">GET /api/notifications/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Параметры:</h4>
+            <table>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+                <tr>
+                    <td><code>page</code></td>
+                    <td>integer</td>
+                    <td>Номер страницы</td>
+                </tr>
+                <tr>
+                    <td><code>is_read</code></td>
+                    <td>boolean</td>
+                    <td>Фильтр по статусу</td>
+                </tr>
+            </table>
+
+            <h3>Отметить как прочитанное</h3>
+            <div class="endpoint">POST /api/notifications/{id}/read/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Настройки уведомлений</h3>
+            <div class="endpoint">GET/POST /api/notifications/settings/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Параметры:</h4>
+            <pre><code>{
+  "push_enabled": true,
+  "email_enabled": false,
+  "new_cards": true,
+  "price_changes": true,
+  "subscription_updates": true,
+  "promotions": false
+}</code></pre>
+        </section>
+
+        <!-- AI АССИСТЕНТ -->
+        <section id="ai">
+            <h2>🤖 AI Ассистент</h2>
+
+            <h3>Чат с AI</h3>
+            <div class="endpoint">POST /api/cards/ai/chat/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "message": "Найди мне двухкомнатную квартиру в Махачкале до 5 млн",
+  "mode": "search",
+  "user_preferences": {
+    "city": 1,
+    "rooms_min": 2,
+    "rooms_max": 2,
+    "price_max": 5000000
+  }
+}</code></pre>
+
+            <h4>Параметр mode:</h4>
+            <ul>
+                <li><code>search</code> — Поиск с результатами из БД</li>
+                <li><code>free</code> — Свободный чат без поиска</li>
+            </ul>
+
+            <h3>История чата</h3>
+            <div class="endpoint">GET /api/cards/ai/history/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Оценить ответ AI</h3>
+            <div class="endpoint">POST /api/cards/ai/chat/{pk}/rate/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h3>Запросить скидку</h3>
+            <div class="endpoint">POST /api/cards/{id}/discount/</div>
+            <span class="auth-required">Требует авторизации</span>
+
+            <h4>Запрос:</h4>
+            <pre><code>{
+  "suggested_price": 4500000,
+  "message": "Готов заключить договор немедленно"
+}</code></pre>
+
+            <h3>Мои запросы на скидку</h3>
+            <div class="endpoint">GET /api/cards/discounts/me/</div>
+            <span class="auth-required">Требует авторизации</span>
+        </section>
+
+        <!-- СПРАВОЧНИКИ -->
+        <section id="references">
+            <h2>📚 Справочники</h2>
+
+            <h3>Города</h3>
+            <table>
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                </tr>
+                <tr>
+                    <td>1</td>
+                    <td>Махачкала</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>Каспийск</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Дербент</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>Избербаш</td>
+                </tr>
+            </table>
+
+            <h3>Тип комплекса</h3>
+            <table>
+                <tr>
+                    <th>Значение</th>
+                    <th>Название</th>
+                </tr>
+                <tr>
+                    <td><code>residential</code></td>
+                    <td>Жилой комплекс</td>
+                </tr>
+                <tr>
+                    <td><code>apart</code></td>
+                    <td>Апарт-комплекс</td>
+                </tr>
+            </table>
+
+            <h3>Тип дома</h3>
+            <table>
+                <tr>
+                    <th>Значение</th>
+                    <th>Название</th>
+                </tr>
+                <tr>
+                    <td><code>brick</code></td>
+                    <td>Кирпичный</td>
+                </tr>
+                <tr>
+                    <td><code>panel</code></td>
+                    <td>Панельный</td>
+                </tr>
+                <tr>
+                    <td><code>monolith</code></td>
+                    <td>Монолитный</td>
+                </tr>
+                <tr>
+                    <td><code>brick_monolith</code></td>
+                    <td>Кирпично-монолитный</td>
+                </tr>
+                <tr>
+                    <td><code>solid_monolith</code></td>
+                    <td>Цельно-монолитный</td>
+                </tr>
+            </table>
+
+            <h3>Категория</h3>
+            <table>
+                <tr>
+                    <th>Значение</th>
+                    <th>Название</th>
+                </tr>
+                <tr>
+                    <td><code>flat</code></td>
+                    <td>Квартира</td>
+                </tr>
+                <tr>
+                    <td><code>new_building</code></td>
+                    <td>Новостройка</td>
+                </tr>
+                <tr>
+                    <td><code>secondary</code></td>
+                    <td>Вторичное</td>
+                </tr>
+            </table>
+
+            <h3>Лифт</h3>
+            <table>
+                <tr>
+                    <th>Значение</th>
+                    <th>Название</th>
+                </tr>
+                <tr>
+                    <td><code>none</code></td>
+                    <td>Нет</td>
+                </tr>
+                <tr>
+                    <td><code>passenger</code></td>
+                    <td>Пассажирский</td>
+                </tr>
+                <tr>
+                    <td><code>cargo</code></td>
+                    <td>Грузовой</td>
+                </tr>
+                <tr>
+                    <td><code>cargo_passenger</code></td>
+                    <td>Грузопассажирский</td>
+                </tr>
+                <tr>
+                    <td><code>passenger_and_cargo</code></td>
+                    <td>Пассажирский и грузовой</td>
+                </tr>
+            </table>
+
+            <h3>Коды ошибок</h3>
+            <table>
+                <tr>
+                    <th>Код</th>
+                    <th>Описание</th>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">200</span></td>
+                    <td>OK — Успешно</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">201</span></td>
+                    <td>Created — Создано</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">204</span></td>
+                    <td>No Content — Успешно удалено</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-warning">400</span></td>
+                    <td>Bad Request — Ошибка в параметрах</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-warning">401</span></td>
+                    <td>Unauthorized — Требуется авторизация</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-warning">403</span></td>
+                    <td>Forbidden — Доступ запрещён</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-warning">404</span></td>
+                    <td>Not Found — Не найдено</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-danger">500</span></td>
+                    <td>Server Error — Ошибка сервера</td>
+                </tr>
+            </table>
+        </section>
+    </div>
+
+    <footer>
+        <p><strong>Dream House API Documentation v1.0.0</strong></p>
+        <p>Для вопросов и поддержки обратитесь: support@dreamhouse05.com</p>
+        <p>© 2026 Dream House. Все права защищены.</p>
+    </footer>
+</body>
+</html>
