@@ -85,4 +85,11 @@ class NotificationSerializer(serializers.ModelSerializer):
 class NotificationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationSettings
-        fields = ("enabled",)
+        fields = (
+            "push_enabled",
+            "email_enabled",
+            "new_cards",
+            "price_changes",
+            "subscription_updates",
+            "promotions",
+        )

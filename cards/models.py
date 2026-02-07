@@ -458,7 +458,32 @@ class AIAssistant(models.Model):
     model_name = models.CharField(
         max_length=100,
         default='gpt-4',
-        help_text="Название модели (gpt-4, claude-3-opus и т.д.)"
+        choices=[
+            # OpenAI GPT-4 Series
+            ('gpt-4.1', 'GPT-4.1 (новейшая)'),
+            ('gpt-4.1-mini', 'GPT-4.1 Mini (быстрая и дешёвая)'),
+            ('gpt-4.1-nano', 'GPT-4.1 Nano (самая быстрая)'),
+            ('gpt-4o', 'GPT-4o (мультимодальная)'),
+            ('gpt-4o-mini', 'GPT-4o Mini'),
+            ('gpt-4-turbo', 'GPT-4 Turbo'),
+            ('gpt-4', 'GPT-4'),
+            # OpenAI GPT-3.5 Series
+            ('gpt-3.5-turbo', 'GPT-3.5 Turbo'),
+            # OpenAI o-series (reasoning)
+            ('o1', 'o1 (reasoning)'),
+            ('o1-mini', 'o1 Mini'),
+            ('o1-preview', 'o1 Preview'),
+            ('o3-mini', 'o3 Mini'),
+            # Anthropic Claude
+            ('claude-3-opus-20240229', 'Claude 3 Opus'),
+            ('claude-3-sonnet-20240229', 'Claude 3 Sonnet'),
+            ('claude-3-haiku-20240307', 'Claude 3 Haiku'),
+            ('claude-3-5-sonnet-20241022', 'Claude 3.5 Sonnet'),
+            # DeepSeek
+            ('deepseek-chat', 'DeepSeek Chat'),
+            ('deepseek-reasoner', 'DeepSeek Reasoner (R1)'),
+        ],
+        help_text="Выберите модель ИИ"
     )
     system_prompt = models.TextField(
         default="""Ты профессиональный консультант по недвижимости. Помогай пользователям найти идеальный дом.

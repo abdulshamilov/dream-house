@@ -87,6 +87,11 @@ class CardAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         """Сохранить карточку и создать уведомления подписчикам"""
         is_new = not change  # change=False для новых
+        
+        # Автоматически назначить владельца при создании новой карточки
+        if is_new and not obj.owner_id:
+            obj.owner = request.user
+        
         super().save_model(request, obj, form, change)
         
         # Если это новая карточка с девелопером, создать уведомления подписчикам
