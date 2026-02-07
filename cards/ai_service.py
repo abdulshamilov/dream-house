@@ -50,6 +50,17 @@ class AIAssistantService:
             if self.config.api_provider == 'openai':
                 from openai import OpenAI
                 return OpenAI(api_key=api_key)
+            elif self.config.api_provider == 'openrouter':
+                from openai import OpenAI
+                # OpenRouter — прокси к OpenAI/Claude, работает из России
+                return OpenAI(
+                    api_key=api_key,
+                    base_url="https://openrouter.ai/api/v1",
+                    default_headers={
+                        "HTTP-Referer": "https://dreamhouse05.com",
+                        "X-Title": "Dream House"
+                    }
+                )
             elif self.config.api_provider == 'anthropic':
                 import anthropic
                 return anthropic.Anthropic(api_key=api_key)
@@ -444,6 +455,7 @@ class AIAssistantService:
         
         api_methods = {
             'openai': self._call_openai,
+            'openrouter': self._call_openai,  # OpenRouter совместим с OpenAI API
             'anthropic': self._call_anthropic,
             'deepseek': self._call_deepseek,
         }

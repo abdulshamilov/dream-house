@@ -443,6 +443,7 @@ class AIAssistant(models.Model):
         max_length=50,
         choices=[
             ('openai', 'OpenAI (GPT-4)'),
+            ('openrouter', 'OpenRouter (обход блокировки)'),
             ('anthropic', 'Anthropic (Claude)'),
             ('deepseek', 'DeepSeek (R1)'),
             ('disabled', 'Отключен'),
