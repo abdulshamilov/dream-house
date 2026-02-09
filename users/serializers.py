@@ -114,11 +114,12 @@ class ReferralLinkSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False, allow_blank=True, default="")
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
     profile_photo = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ("id", "phone_number", "name", "profile_photo")
+        fields = ("id", "phone_number", "name", "email", "profile_photo")
     
     def get_profile_photo(self, obj) -> str:
         """Get full URL for profile photo"""
@@ -144,9 +145,17 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = User
-        fields = ('name', 'profile_photo')
+        fields = ('name', 'email', 'profile_photo')
+    
+    def validate_email(self, value):
+        """Validate email"""
+        if value == '':
+            return None
+        return value
     
     def validate_profile_photo(self, value):
         """Validate profile photo"""

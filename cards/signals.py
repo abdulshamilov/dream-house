@@ -1,7 +1,7 @@
 import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Card, DiscountRequest
+from .models import Card, DiscountRequest, Promotion
 from developers.models import Subscription
 from notifications.models import Notification
 
@@ -109,3 +109,66 @@ def notify_on_discount_request(sender, instance, created, **kwargs):
             )
         except Exception as e:
             logger.warning(f"WebSocket error: {e}")
+
+
+@receiver(post_save, sender=Promotion)
+def notify_users_on_promotion(sender, instance, created, **kwargs):
+    """
+    Отправляет пуш-уведомления всем пользователям при создании новой акции.
+    Уведомляет только пользователей с включенными уведомлениями об акциях.
+    """
+    if not created or not instance.is_active:
+        return
+
+    from django.contrib.auth import get_user_model
+    from notifications.models import NotificationSettings
+    
+    User = get_user_model()
+    
+    # Получить всех пользователей с включенными уведомлениями об акциях
+    users_with_promo_enabled = User.objects.filter(
+        is_active=True
+    ).exclude(
+        notification_settings__promotions=False
+    )
+    
+    # Получить первую карточку из акции для превью (если есть)
+    first_item = instance.items.first()
+    card = first_item.card if first_item else None
+    
+    notifications_to_create = []
+    for user in users_with_promo_enabled:
+        notifications_to_create.append(
+            Notification(
+                user=user,
+                card=card,
+                type=Notification.TYPE_SALE,
+                title=f"Новая акция: {instance.title}",
+                message=f"Посмотрите выгодные предложения в акции «{instance.title}»"
+            )
+        )
+    
+    # Bulk create для производительности
+    if notifications_to_create:
+        Notification.objects.bulk_create(notifications_to_create)
+        logger.info(f"Created {len(notifications_to_create)} notifications for promotion '{instance.title}'")
+    
+    # WebSocket уведомления
+    if HAS_CHANNELS:
+        try:
+            channel_layer = get_channel_layer()
+            if channel_layer is None:
+                return
+            
+            for user in users_with_promo_enabled:
+                async_to_sync(channel_layer.group_send)(
+                    f"user_{user.id}",
+                    {
+                        "type": "send_notification",
+                        "title": f"Новая акция: {instance.title}",
+                        "message": f"Посмотрите выгодные предложения!"
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"WebSocket error for promotion: {e}")
+

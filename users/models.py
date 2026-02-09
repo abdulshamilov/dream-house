@@ -29,6 +29,12 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=15, unique=True)
     name = models.CharField(max_length=50, blank=True, null=True)
+    email = models.EmailField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Email для уведомлений (опционально)"
+    )
 
     profile_photo = models.ImageField(
         upload_to='users/profiles/', 
