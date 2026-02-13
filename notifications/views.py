@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from django.db.models import Q
 
 from .models import Notification, NotificationSettings
 from .serializers import NotificationSerializer, NotificationSettingsSerializer
@@ -13,10 +14,14 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Notification.objects.none()
+        # Возвращаем как персональные уведомления пользователя, так и глобальные
         return (
-            Notification.objects.filter(user=self.request.user)
-            .select_related("card")
+            Notification.objects.filter(
+                Q(user=self.request.user) | Q(is_global=True)
+            )
+            .select_related("card", "promotion")
             .prefetch_related("card__images")
+            .distinct()
         )
 
 
@@ -27,6 +32,7 @@ class NotificationMarkReadView(generics.UpdateAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Notification.objects.none()
+        # Позволяем отмечать как прочитанные только персональные уведомления
         return Notification.objects.filter(user=self.request.user)
 
     def perform_update(self, serializer):
@@ -40,14 +46,14 @@ class NotificationSettingsView(APIView):
     @extend_schema(responses=NotificationSettingsSerializer)
     def get(self, request):
         settings_obj, _ = NotificationSettings.objects.get_or_create(
-            user=request.user, defaults={"enabled": True}
+            user=request.user
         )
         return Response(NotificationSettingsSerializer(settings_obj).data)
 
     @extend_schema(request=NotificationSettingsSerializer, responses=NotificationSettingsSerializer)
     def post(self, request):
         settings_obj, _ = NotificationSettings.objects.get_or_create(
-            user=request.user, defaults={"enabled": True}
+            user=request.user
         )
         serializer = NotificationSettingsSerializer(settings_obj, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

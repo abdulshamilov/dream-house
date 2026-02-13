@@ -12,6 +12,9 @@ class NotificationSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     old_price = serializers.SerializerMethodField()
+    promotion_id = serializers.SerializerMethodField()
+    promotion_title = serializers.SerializerMethodField()
+    promotion_banner_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Notification
@@ -26,6 +29,9 @@ class NotificationSerializer(serializers.ModelSerializer):
             "image_url",
             "price",
             "old_price",
+            "promotion_id",
+            "promotion_title",
+            "promotion_banner_url",
         )
         read_only_fields = (
             "user",
@@ -37,6 +43,9 @@ class NotificationSerializer(serializers.ModelSerializer):
             "image_url",
             "price",
             "old_price",
+            "promotion_id",
+            "promotion_title",
+            "promotion_banner_url",
         )
 
     @extend_schema_field(serializers.CharField(allow_null=True))
@@ -80,6 +89,30 @@ class NotificationSerializer(serializers.ModelSerializer):
             return None
         old_price_decimal = Decimal(str(obj.old_price))
         return int(old_price_decimal.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_promotion_id(self, obj) -> Optional[int]:
+        if not obj.promotion_id:
+            return None
+        return obj.promotion_id
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_promotion_title(self, obj) -> Optional[str]:
+        promotion = getattr(obj, "promotion", None)
+        if not promotion:
+            return None
+        return promotion.title
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_promotion_banner_url(self, obj) -> Optional[str]:
+        promotion = getattr(obj, "promotion", None)
+        if not promotion or not promotion.banner_image:
+            return None
+        request = self.context.get("request") if hasattr(self, "context") else None
+        try:
+            return request.build_absolute_uri(promotion.banner_image.url) if request else promotion.banner_image.url
+        except Exception:
+            return None
 
 
 class NotificationSettingsSerializer(serializers.ModelSerializer):

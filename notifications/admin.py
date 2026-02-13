@@ -6,50 +6,109 @@ from .models import Notification, NotificationSettings
 User = get_user_model()
 
 
-class MassNotificationForm(forms.ModelForm):
-    """Форма для массовой рассылки уведомлений"""
+class NotificationAdminForm(forms.ModelForm):
+    """Форма для создания уведомлений с возможностью массовой рассылки"""
     send_to_all = forms.BooleanField(
         required=False,
         initial=False,
         label="Отправить всем пользователям",
-        help_text="Если отмечено, уведомление будет отправлено всем активным пользователям"
+        help_text="Если отмечено, уведомление будет отправлено всем активным пользователям (поле 'Пользователь' будет игнорироваться)"
     )
     
     class Meta:
         model = Notification
-        fields = ['title', 'message', 'type', 'card']
+        fields = '__all__'
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Делаем user необязательным для массовой рассылки
         if 'user' in self.fields:
             self.fields['user'].required = False
+            self.fields['user'].help_text = "Оставьте пустым и отметьте 'Отправить всем' для массовой рассылки"
 
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'title', 'type', 'is_read', 'created_at']
-    list_filter = ['type', 'is_read', 'created_at']
+    form = NotificationAdminForm
+    list_display = ['id', 'user', 'title', 'type', 'promotion', 'is_global', 'is_read', 'created_at']
+    list_filter = ['type', 'is_read', 'is_global', 'created_at', 'promotion']
     search_fields = ['title', 'message', 'user__phone_number']
     readonly_fields = ['created_at']
     ordering = ['-created_at']
+    autocomplete_fields = ['user', 'card', 'promotion']
     
     fieldsets = (
+        ('Массовая рассылка', {
+            'fields': ('send_to_all',),
+            'description': 'Отметьте для отправки уведомления всем активным пользователям',
+            'classes': ('wide',)
+        }),
         ('Основное', {
             'fields': ('title', 'message', 'type')
         }),
         ('Получатель', {
             'fields': ('user',),
-            'description': 'Оставьте пустым и используйте действие "Массовая рассылка" для отправки всем'
+            'description': 'Оставьте пустым для массовой рассылки или выберите конкретного пользователя'
         }),
         ('Связи', {
-            'fields': ('card', 'old_price'),
-            'classes': ('collapse',)
+            'fields': ('card', 'promotion', 'old_price'),
         }),
         ('Статус', {
-            'fields': ('is_read', 'created_at'),
+            'fields': ('is_read', 'is_global', 'created_at'),
         }),
     )
+    
+    def get_fieldsets(self, request, obj=None):
+        """Показывать send_to_all только при создании нового уведомления"""
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj:  # Редактирование существующего объекта
+            # Убираем поле send_to_all
+            return tuple(
+                (name, opts) for name, opts in fieldsets 
+                if name != 'Массовая рассылка'
+            )
+        return fieldsets
+    
+    def save_model(self, request, obj, form, change):
+        """Обработка сохранения с возможностью массовой рассылки"""
+        send_to_all = form.cleaned_data.get('send_to_all', False)
+        
+        if send_to_all and not change:
+            # Массовая рассылка - создаем уведомления для всех пользователей
+            obj.is_global = True
+            obj.user = None
+            super().save_model(request, obj, form, change)
+            
+            # Получаем всех активных пользователей
+            users = User.objects.filter(is_active=True)
+            
+            # Исключаем пользователей, которые отключили рассылку промо (если уведомление связано с акцией)
+            if obj.promotion or obj.type in ['discount', 'sale']:
+                users = users.exclude(notification_settings__promotions=False)
+            
+            notifications = []
+            for user in users:
+                notifications.append(
+                    Notification(
+                        user=user,
+                        title=obj.title,
+                        message=obj.message,
+                        type=obj.type,
+                        card=obj.card,
+                        promotion=obj.promotion,
+                        old_price=obj.old_price,
+                        is_global=False,  # Индивидуальные копии не глобальные
+                    )
+                )
+            
+            if notifications:
+                Notification.objects.bulk_create(notifications)
+                self.message_user(request, f"Создано глобальное уведомление и отправлено {len(notifications)} копий пользователям")
+            else:
+                self.message_user(request, "Глобальное уведомление создано, но нет активных пользователей", level='warning')
+        else:
+            # Обычное сохранение
+            super().save_model(request, obj, form, change)
     
     actions = ['send_mass_notification', 'mark_as_read', 'mark_as_unread']
     
@@ -61,13 +120,19 @@ class NotificationAdmin(admin.ModelAdmin):
             return
         
         template = queryset.first()
-        users = User.objects.filter(is_active=True).exclude(
-            notification_settings__promotions=False
-        )
+        users = User.objects.filter(is_active=True)
+        
+        # Исключаем пользователей, которые отключили рассылку промо (если связано с акцией)
+        if template.promotion or template.type in ['discount', 'sale']:
+            users = users.exclude(notification_settings__promotions=False)
+        
+        existing_users = set()
+        if template.user:
+            existing_users.add(template.user.id)
         
         notifications = []
         for user in users:
-            if user != template.user:  # Не дублировать автору
+            if user.id not in existing_users:
                 notifications.append(
                     Notification(
                         user=user,
@@ -75,6 +140,7 @@ class NotificationAdmin(admin.ModelAdmin):
                         message=template.message,
                         type=template.type,
                         card=template.card,
+                        promotion=template.promotion,
                         old_price=template.old_price,
                     )
                 )

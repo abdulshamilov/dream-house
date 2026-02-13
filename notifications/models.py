@@ -11,18 +11,21 @@ class Notification(models.Model):
     TYPE_SYSTEM = "system"
 
     TYPE_CHOICES = (
-        (TYPE_PRICE_DROP, "Price drop"),
-        (TYPE_SALE, "Sale"),
-        (TYPE_DISCOUNT, "Discount"),
-        (TYPE_SUBSCRIPTION, "Subscription"),
-        (TYPE_NEW, "New"),
-        (TYPE_SYSTEM, "System"),
+        (TYPE_PRICE_DROP, "Снижение цены"),
+        (TYPE_SALE, "Распродажа"),
+        (TYPE_DISCOUNT, "Скидка"),
+        (TYPE_SUBSCRIPTION, "Подписка"),
+        (TYPE_NEW, "Новинка"),
+        (TYPE_SYSTEM, "Системное"),
     )
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="notifications",
+        null=True,
+        blank=True,
+        help_text="Оставьте пустым для массовой рассылки всем пользователям",
     )
     title = models.CharField(max_length=255, null=True, blank=True)
     message = models.TextField(null=True, blank=True)
@@ -36,6 +39,15 @@ class Notification(models.Model):
         blank=True,
         related_name="notifications",
     )
+    promotion = models.ForeignKey(
+        "cards.Promotion",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+        verbose_name="Акция",
+        help_text="Связанная акция для уведомления",
+    )
     old_price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -44,6 +56,11 @@ class Notification(models.Model):
         help_text="Previous price before discount",
     )
     is_read = models.BooleanField(default=False)
+    is_global = models.BooleanField(
+        default=False,
+        verbose_name="Глобальное уведомление",
+        help_text="Уведомление для всех пользователей",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
