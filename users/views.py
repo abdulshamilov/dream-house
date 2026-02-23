@@ -73,6 +73,8 @@ class RegisterView(APIView):
         summary="Шаг 1: Регистрация - отправка кода подтверждения"
     )
     def post(self, request):
+        from .models import SMSRateLimit
+        
         serializer = RegisterRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -85,6 +87,14 @@ class RegisterView(APIView):
             return Response(
                 {"detail": "User already registered. Use /api/users/sms/request/ to sign in."},
                 status=400
+            )
+        
+        # Проверка rate limit
+        allowed, wait_seconds, message = SMSRateLimit.check_and_record(phone_number)
+        if not allowed:
+            return Response(
+                {"detail": message, "wait_seconds": wait_seconds},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         
         # Generate OTP and save registration data temporarily
@@ -563,8 +573,18 @@ class DeleteAccountOTPRequestView(APIView):
         description="Отправляет одноразовый код на привязанный номер. Код действует 5 минут."
     )
     def post(self, request):
+        from .models import SMSRateLimit
+        
         user = request.user
         phone_number = user.phone_number
+
+        # Проверка rate limit
+        allowed, wait_seconds, message = SMSRateLimit.check_and_record(phone_number)
+        if not allowed:
+            return Response(
+                {"detail": message, "wait_seconds": wait_seconds},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
 
         otp = LoginOTP.generate_otp()
         LoginOTP.objects.filter(phone_number=phone_number).delete()
@@ -738,7 +758,7 @@ class SMSRequestView(APIView):
         summary="Запрос кода входа в SMS (как Ozon)"
     )
     def post(self, request):
-        from .models import LoginOTP
+        from .models import LoginOTP, SMSRateLimit
         serializer = SMSRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -749,6 +769,14 @@ class SMSRequestView(APIView):
             return Response(
                 {"detail": "Пользователь с таким номером не найден. Зарегистрируйтесь, чтобы войти."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        # Проверка rate limit
+        allowed, wait_seconds, message = SMSRateLimit.check_and_record(phone_number)
+        if not allowed:
+            return Response(
+                {"detail": message, "wait_seconds": wait_seconds},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         
         # Generate OTP

@@ -49,7 +49,23 @@ class AIAssistantService:
         try:
             if self.config.api_provider == 'openai':
                 from openai import OpenAI
-                return OpenAI(api_key=api_key)
+                # Проверяем наличие прокси-сервера (для обхода блокировки)
+                proxy_url = os.environ.get('OPENAI_PROXY_URL')
+                proxy_secret = os.environ.get('OPENAI_PROXY_SECRET')
+                
+                if proxy_url:
+                    # Используем прокси на голландском сервере
+                    logger.info(f"Using OpenAI proxy: {proxy_url}")
+                    return OpenAI(
+                        api_key="proxy",  # Ключ хранится на прокси, это просто placeholder
+                        base_url=f"{proxy_url.rstrip('/')}/v1",
+                        default_headers={
+                            "X-Proxy-Auth": proxy_secret or ""
+                        }
+                    )
+                else:
+                    # Прямое подключение к OpenAI (работает без блокировки)
+                    return OpenAI(api_key=api_key)
             elif self.config.api_provider == 'openrouter':
                 from openai import OpenAI
                 # OpenRouter — прокси к OpenAI/Claude, работает из России

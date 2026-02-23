@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Руководство по настройке API Proxy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            opacity: 0.8;
+            font-size: 1.1rem;
+        }
+        
+        .benefits {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .benefit {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .benefit-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .benefit h3 {
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .benefit p {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .step {
+            margin-bottom: 40px;
+            border-left: 4px solid #667eea;
+            padding-left: 25px;
+        }
+        
+        .step-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 36px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .step h2 {
+            color: #1a1a2e;
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+        }
+        
+        .step p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        pre {
+            background: #1a1a2e;
+            color: #e0e0e0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .comment {
+            color: #6a9955;
+        }
+        
+        .highlight {
+            color: #569cd6;
+        }
+        
+        .string {
+            color: #ce9178;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+        
+        .warning::before {
+            content: "⚠️ ";
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+        
+        .success::before {
+            content: "✅ ";
+        }
+        
+        .info {
+            background: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+        
+        .info::before {
+            content: "💡 ";
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #667eea;
+            color: #fff;
+        }
+        
+        tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .bonus {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            margin: 30px 0;
+        }
+        
+        .bonus h2 {
+            margin-bottom: 15px;
+        }
+        
+        .bonus pre {
+            background: rgba(0,0,0,0.3);
+        }
+        
+        footer {
+            background: #1a1a2e;
+            color: #fff;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        footer a {
+            color: #667eea;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .toc h3 {
+            margin-bottom: 15px;
+            color: #1a1a2e;
+        }
+        
+        .toc ul {
+            list-style: none;
+        }
+        
+        .toc li {
+            padding: 5px 0;
+        }
+        
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            header {
+                padding: 25px;
+            }
+            
+            header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .step {
+                padding-left: 15px;
+            }
+            
+            pre {
+                padding: 15px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 API Proxy Server</h1>
+            <p>Руководство по настройке голландского прокси-сервера</p>
+        </header>
+        
+        <div class="benefits">
+            <div class="benefit">
+                <div class="benefit-icon">🔓</div>
+                <h3>OpenAI Proxy</h3>
+                <p>Обход блокировки GPT API</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">🤖</div>
+                <h3>Anthropic Proxy</h3>
+                <p>Claude тоже работает</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">💾</div>
+                <h3>Кеширование</h3>
+                <p>Экономия 30-50% на API</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">🔐</div>
+                <h3>VPN бонус</h3>
+                <p>WireGuard за 5 минут</p>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="toc">
+                <h3>📋 Содержание</h3>
+                <ul>
+                    <li><a href="#step1">Шаг 1: Подготовка сервера</a></li>
+                    <li><a href="#step2">Шаг 2: Загрузка файлов</a></li>
+                    <li><a href="#step3">Шаг 3: Настройка прокси</a></li>
+                    <li><a href="#step4">Шаг 4: Запуск сервиса</a></li>
+                    <li><a href="#step5">Шаг 5: Настройка HTTPS</a></li>
+                    <li><a href="#step6">Шаг 6: Настройка основного сервера</a></li>
+                    <li><a href="#vpn">Бонус: VPN</a></li>
+                    <li><a href="#backup">Бонус: Автобэкап</a></li>
+                    <li><a href="#check">Проверка работы</a></li>
+                    <li><a href="#endpoints">Справочник API</a></li>
+                </ul>
+            </div>
+
+            <!-- STEP 1 -->
+            <div class="step" id="step1">
+                <div class="step-number">1</div>
+                <h2>Подготовка голландского сервера</h2>
+                <p>Подключаемся к серверу по SSH:</p>
+                <pre><code>ssh root@IP-вашего-голландского-сервера</code></pre>
+                
+                <p>Устанавливаем необходимые пакеты:</p>
+                <pre><code><span class="comment"># Обновление системы и установка Python, nginx, certbot</span>
+apt update && apt install -y python3 python3-pip python3-venv nginx certbot python3-certbot-nginx</code></pre>
+            </div>
+
+            <!-- STEP 2 -->
+            <div class="step" id="step2">
+                <div class="step-number">2</div>
+                <h2>Загрузка файлов на сервер</h2>
+                <p>На вашем компьютере (PowerShell) выполните:</p>
+                <pre><code><span class="comment"># Переходим в папку проекта</span>
+cd C:\Users\abdul\Desktop\dream_house
+
+<span class="comment"># Копируем папку openai_proxy на сервер</span>
+scp -r openai_proxy root@IP-СЕРВЕРА:/opt/</code></pre>
+                
+                <div class="info">
+                    Замените <code>IP-СЕРВЕРА</code> на реальный IP-адрес вашего голландского сервера
+                </div>
+            </div>
+
+            <!-- STEP 3 -->
+            <div class="step" id="step3">
+                <div class="step-number">3</div>
+                <h2>Настройка прокси</h2>
+                <p>На голландском сервере:</p>
+                <pre><code><span class="comment"># Переходим в папку</span>
+cd /opt/openai_proxy
+
+<span class="comment"># Создаём виртуальное окружение Python</span>
+python3 -m venv venv
+source venv/bin/activate
+
+<span class="comment"># Устанавливаем зависимости</span>
+pip install -r requirements.txt
+
+<span class="comment"># Создаём файл настроек</span>
+cp .env.example .env
+nano .env</code></pre>
+
+                <p>Заполняем файл <code>.env</code>:</p>
+                <pre><code><span class="comment"># Ваш ключ OpenAI (получить на platform.openai.com)</span>
+OPENAI_API_KEY=<span class="string">sk-proj-xxxxxxxxxxxxx</span>
+
+<span class="comment"># Ключ Anthropic (опционально, console.anthropic.com)</span>
+ANTHROPIC_API_KEY=<span class="string">sk-ant-xxxxxxxxxxxxx</span>
+
+<span class="comment"># Секретный ключ для авторизации (сгенерируйте ниже)</span>
+PROXY_SECRET_KEY=<span class="string">ваш-секретный-ключ</span>
+
+<span class="comment"># Настройки кеширования</span>
+CACHE_ENABLED=<span class="highlight">true</span>
+CACHE_TTL=<span class="highlight">3600</span>
+PORT=<span class="highlight">8080</span></code></pre>
+
+                <p>Генерируем секретный ключ:</p>
+                <pre><code>openssl rand -hex 32</code></pre>
+                
+                <div class="warning">
+                    <strong>Важно!</strong> Скопируйте сгенерированный ключ и сохраните — он понадобится для настройки основного сервера.
+                </div>
+            </div>
+
+            <!-- STEP 4 -->
+            <div class="step" id="step4">
+                <div class="step-number">4</div>
+                <h2>Запуск прокси как системного сервиса</h2>
+                <p>Создаём файл сервиса systemd:</p>
+                <pre><code>nano /etc/systemd/system/api-proxy.service</code></pre>
+                
+                <p>Вставляем содержимое:</p>
+                <pre><code><span class="highlight">[Unit]</span>
+Description=API Proxy Server
+After=network.target
+
+<span class="highlight">[Service]</span>
+Type=simple
+User=root
+WorkingDirectory=/opt/openai_proxy
+Environment="PATH=/opt/openai_proxy/venv/bin"
+EnvironmentFile=/opt/openai_proxy/.env
+ExecStart=/opt/openai_proxy/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8080 app:app
+Restart=always
+
+<span class="highlight">[Install]</span>
+WantedBy=multi-user.target</code></pre>
+
+                <p>Запускаем сервис:</p>
+                <pre><code><span class="comment"># Перезагружаем конфиг systemd</span>
+systemctl daemon-reload
+
+<span class="comment"># Включаем автозапуск</span>
+systemctl enable api-proxy
+
+<span class="comment"># Запускаем сервис</span>
+systemctl start api-proxy
+
+<span class="comment"># Проверяем статус</span>
+systemctl status api-proxy
+
+<span class="comment"># Тестируем</span>
+curl http://localhost:8080/health</code></pre>
+
+                <div class="success">
+                    Должен вернуть: <code>{"status": "ok", "openai_configured": true, ...}</code>
+                </div>
+            </div>
+
+            <!-- STEP 5 -->
+            <div class="step" id="step5">
+                <div class="step-number">5</div>
+                <h2>Настройка HTTPS (nginx + Let's Encrypt)</h2>
+                
+                <p>Создаём конфиг nginx:</p>
+                <pre><code>nano /etc/nginx/sites-available/api-proxy</code></pre>
+                
+                <p>Вставляем (замените домен на свой):</p>
+                <pre><code>server {
+    listen 80;
+    server_name <span class="string">proxy.ваш-домен.com</span>;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 120s;
+        proxy_connect_timeout 120s;
+    }
+}</code></pre>
+
+                <p>Активируем конфиг и получаем SSL сертификат:</p>
+                <pre><code><span class="comment"># Создаём символическую ссылку</span>
+ln -s /etc/nginx/sites-available/api-proxy /etc/nginx/sites-enabled/
+
+<span class="comment"># Проверяем конфиг nginx</span>
+nginx -t
+
+<span class="comment"># Перезагружаем nginx</span>
+systemctl reload nginx
+
+<span class="comment"># Получаем бесплатный SSL сертификат</span>
+certbot --nginx -d proxy.ваш-домен.com</code></pre>
+
+                <p>Проверяем HTTPS:</p>
+                <pre><code>curl https://proxy.ваш-домен.com/health</code></pre>
+            </div>
+
+            <!-- STEP 6 -->
+            <div class="step" id="step6">
+                <div class="step-number">6</div>
+                <h2>Настройка основного сервера (Россия)</h2>
+                
+                <p>На российском сервере редактируем <code>.env</code> в папке dream_house:</p>
+                <pre><code>nano /path/to/dream_house/.env</code></pre>
+                
+                <p>Добавляем строки:</p>
+                <pre><code><span class="comment"># URL прокси на голландском сервере</span>
+OPENAI_PROXY_URL=<span class="string">https://proxy.ваш-домен.com</span>
+
+<span class="comment"># Тот же секретный ключ, что указали на прокси</span>
+OPENAI_PROXY_SECRET=<span class="string">ваш-секретный-ключ</span></code></pre>
+
+                <p>Перезапускаем Django:</p>
+                <pre><code><span class="comment"># Если используете gunicorn через systemd</span>
+systemctl restart gunicorn
+
+<span class="comment"># Или supervisor</span>
+supervisorctl restart dream_house</code></pre>
+                
+                <div class="success">
+                    Готово! Теперь AI чат автоматически работает через голландский прокси.
+                </div>
+            </div>
+
+            <!-- VPN BONUS -->
+            <div class="bonus" id="vpn">
+                <h2>🔐 Бонус: VPN за 5 минут</h2>
+                <p>На голландском сервере выполните:</p>
+                <pre><code>cd /opt/openai_proxy
+chmod +x setup_wireguard.sh
+bash setup_wireguard.sh</code></pre>
+                <p>Скрипт автоматически:</p>
+                <ul style="margin: 15px 0 15px 20px;">
+                    <li>Установит WireGuard</li>
+                    <li>Сгенерирует ключи</li>
+                    <li>Покажет QR-код для телефона</li>
+                </ul>
+                <p><strong>Приложения WireGuard:</strong></p>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>Android: Google Play → "WireGuard"</li>
+                    <li>iPhone: App Store → "WireGuard"</li>
+                    <li>Windows: wireguard.com/install</li>
+                </ul>
+            </div>
+
+            <!-- BACKUP BONUS -->
+            <div class="step" id="backup">
+                <div class="step-number">+</div>
+                <h2>Бонус: Автоматический бэкап базы данных</h2>
+                
+                <p>На голландском сервере отредактируйте скрипт:</p>
+                <pre><code>nano /opt/openai_proxy/backup_db.sh</code></pre>
+                
+                <p>Измените строки:</p>
+                <pre><code>MAIN_SERVER=<span class="string">"root@IP-российского-сервера"</span>
+REMOTE_DB_PATH=<span class="string">"/path/to/dream_house/db.sqlite3"</span></code></pre>
+
+                <p>Настройте SSH-ключи для подключения без пароля:</p>
+                <pre><code><span class="comment"># Генерируем ключ</span>
+ssh-keygen -t ed25519
+
+<span class="comment"># Копируем на основной сервер</span>
+ssh-copy-id root@IP-российского-сервера</code></pre>
+
+                <p>Добавьте задачу в cron (ежедневно в 3:00):</p>
+                <pre><code>crontab -e</code></pre>
+                <p>Добавьте строку:</p>
+                <pre><code>0 3 * * * /opt/openai_proxy/backup_db.sh >> /var/log/backup.log 2>&1</code></pre>
+            </div>
+
+            <!-- CHECK -->
+            <div class="step" id="check">
+                <div class="step-number">✓</div>
+                <h2>Проверка что всё работает</h2>
+                
+                <p><strong>На голландском сервере:</strong></p>
+                <pre><code><span class="comment"># Статус прокси</span>
+systemctl status api-proxy
+
+<span class="comment"># Логи в реальном времени</span>
+journalctl -u api-proxy -f
+
+<span class="comment"># Статистика кеша</span>
+curl -H "X-Proxy-Auth: ваш-секретный-ключ" https://proxy.ваш-домен.com/stats</code></pre>
+
+                <p><strong>На основном сайте:</strong></p>
+                <p>Просто используйте AI чат как обычно — запросы автоматически пойдут через прокси.</p>
+            </div>
+
+            <!-- ENDPOINTS TABLE -->
+            <h2 id="endpoints" style="margin-top: 40px; margin-bottom: 20px;">📡 Справочник API Endpoints</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Метод</th>
+                        <th>Описание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>/health</code></td>
+                        <td>GET</td>
+                        <td>Проверка статуса сервера</td>
+                    </tr>
+                    <tr>
+                        <td><code>/stats</code></td>
+                        <td>GET</td>
+                        <td>Статистика (нужен заголовок X-Proxy-Auth)</td>
+                    </tr>
+                    <tr>
+                        <td><code>/v1/*</code></td>
+                        <td>POST</td>
+                        <td>Прокси к OpenAI API</td>
+                    </tr>
+                    <tr>
+                        <td><code>/anthropic/*</code></td>
+                        <td>POST</td>
+                        <td>Прокси к Anthropic API</td>
+                    </tr>
+                    <tr>
+                        <td><code>/cache/clear</code></td>
+                        <td>POST</td>
+                        <td>Очистить кеш (нужен X-Proxy-Auth)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info" style="margin-top: 30px;">
+                <strong>Итого за 400₽/мес:</strong> Прокси OpenAI + Anthropic, кеширование (экономия на API), VPN, бэкапы базы.
+            </div>
+        </div>
+
+        <footer>
+            <p>Dream House API Proxy • 2026</p>
+            <p style="margin-top: 10px; opacity: 0.7;">
+                Вопросы? Проверьте логи: <code>journalctl -u api-proxy -f</code>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
