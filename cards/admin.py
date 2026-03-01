@@ -3,7 +3,7 @@ from django.db import transaction
 from .models import (
     Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,
     CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
-    CardDocumentList, ViewHistory, Promotion, PromotionItem
+    CardDocumentList, ViewHistory, Promotion, PromotionItem, PrivacyPolicy
 )
 
 # 🔹 Inlines для связанных моделей
@@ -426,3 +426,37 @@ class ViewHistoryAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Просмотры создаются автоматически через API
         return False
+
+
+# 🔑 НОВАЯ: Админка для политики конфиденциальности
+@admin.register(PrivacyPolicy)
+class PrivacyPolicyAdmin(admin.ModelAdmin):
+    list_display = ['title', 'version', 'is_active', 'has_document', 'effective_date', 'updated_at']
+    list_filter = ['is_active', 'effective_date']
+    search_fields = ['title', 'content']
+    readonly_fields = ['created_at', 'updated_at']
+    list_editable = ['is_active']
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('title', 'version', 'is_active', 'effective_date')
+        }),
+        ('Содержание (текст или файл)', {
+            'fields': ('content', 'document'),
+            'description': 'Можно добавить текст (поддерживает HTML) и/или загрузить PDF/Word документ'
+        }),
+        ('Метаданные', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_document(self, obj):
+        """Показывает есть ли загруженный документ"""
+        return bool(obj.document)
+    has_document.boolean = True
+    has_document.short_description = 'Файл'
+    
+    def save_model(self, request, obj, form, change):
+        """При активации деактивировать остальные"""
+        super().save_model(request, obj, form, change)

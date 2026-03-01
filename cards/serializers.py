@@ -435,3 +435,19 @@ class ReviewCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CardReview
         fields = ['rating', 'text']
+
+
+# 🔑 НОВЫЙ: Сериализатор для политики конфиденциальности
+class PrivacyPolicySerializer(serializers.Serializer):
+    """Сериализатор для политики конфиденциальности"""
+    text = serializers.CharField(source='content', read_only=True, allow_null=True)
+    document_url = serializers.SerializerMethodField()
+
+    def get_document_url(self, obj):
+        """URL документа (PDF/Word)"""
+        if obj.document:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.document.url)
+            return obj.document.url
+        return None

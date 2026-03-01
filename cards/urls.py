@@ -28,6 +28,7 @@ from .views import (
     ReviewLikeView,  # 🔑 ЛАЙКИ НА ОТЗЫВЫ
     PromotionListView,  # 🔑 АКЦИИ
     CityListView,
+    PrivacyPolicyView,  # 🔑 ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ
 )
 from .views_ai import (
     DiscountRequestCreateView,
@@ -76,4 +77,6 @@ urlpatterns = [
     path("ai/chat/", AIChatView.as_view(), name="ai_chat"),
     path("ai/history/", ChatHistoryView.as_view(), name="chat_history"),
     path("ai/chat/<int:pk>/rate/", RateAIResponseView.as_view(), name="rate_ai_response"),
+    # 🔑 ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ
+    path("privacy-policy/", PrivacyPolicyView.as_view(), name="privacy_policy"),
 ]

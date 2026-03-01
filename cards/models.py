@@ -643,3 +643,62 @@ class ViewHistory(models.Model):
 
     def __str__(self):
         return f"{self.user} посмотрел {self.card.title} - {self.viewed_at.strftime('%d.%m.%Y %H:%M')}"
+
+
+# 🔑 МОДЕЛЬ: Политика конфиденциальности
+class PrivacyPolicy(models.Model):
+    """Политика конфиденциальности - синглтон модель"""
+    title = models.CharField(
+        max_length=255,
+        default="Политика конфиденциальности",
+        verbose_name="Заголовок"
+    )
+    content = models.TextField(
+        verbose_name="Содержание",
+        help_text="Полный текст политики конфиденциальности (поддерживает HTML)",
+        blank=True,
+        null=True
+    )
+    document = models.FileField(
+        upload_to='documents/privacy/',
+        verbose_name="Документ (PDF/Word)",
+        help_text="Загрузите PDF или Word файл с политикой конфиденциальности",
+        blank=True,
+        null=True
+    )
+    version = models.CharField(
+        max_length=50,
+        default="1.0",
+        verbose_name="Версия"
+    )
+    effective_date = models.DateField(
+        verbose_name="Дата вступления в силу",
+        null=True,
+        blank=True
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Активна",
+        help_text="Только одна политика может быть активной"
+    )
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = "Политика конфиденциальности"
+        verbose_name_plural = "Политики конфиденциальности"
+
+    def __str__(self):
+        return f"{self.title} (v{self.version})"
+
+    def save(self, *args, **kwargs):
+        # При активации деактивировать остальные
+        if self.is_active:
+            PrivacyPolicy.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_active(cls):
+        """Получить активную политику конфиденциальности"""
+        return cls.objects.filter(is_active=True).first()

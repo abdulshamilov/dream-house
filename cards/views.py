@@ -1095,3 +1095,36 @@ class RecentlyViewedView(generics.ListAPIView):
         from django.db.models import Case, When
         preserved_order = Case(*[When(id=pk, then=pos) for pos, pk in enumerate(recent_views)])
         return Card.objects.filter(id__in=recent_views).order_by(preserved_order)
+
+
+# 🔑 НОВОЕ: Политика конфиденциальности
+from .models import PrivacyPolicy
+from .serializers import PrivacyPolicySerializer
+
+
+@extend_schema(
+    tags=["Настройки"],
+    summary="Получить политику конфиденциальности",
+    description="Возвращает активную политику конфиденциальности. Доступно без авторизации.",
+    responses={
+        200: PrivacyPolicySerializer,
+        404: inline_serializer(
+            name="PrivacyPolicyNotFound",
+            fields={"detail": serializers.CharField()}
+        )
+    }
+)
+class PrivacyPolicyView(APIView):
+    """Получение активной политики конфиденциальности"""
+    permission_classes = [permissions.AllowAny]
+    serializer_class = PrivacyPolicySerializer
+
+    def get(self, request):
+        policy = PrivacyPolicy.get_active()
+        if not policy:
+            return Response(
+                {"detail": "Политика конфиденциальности не найдена"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = PrivacyPolicySerializer(policy, context={'request': request})
+        return Response(serializer.data)
