@@ -131,9 +131,7 @@ class LoginOTP(models.Model):
 class SMSRateLimit(models.Model):
     """Rate limiting для отправки SMS кодов
     
-    Правила:
-    - Первые 2 попытки: ждать 2 минуты между каждой
-    - После 2-х попыток: ждать 5 минут
+    Ограничения отключены
     """
     phone_number = models.CharField(max_length=15, unique=True)
     attempts = models.PositiveIntegerField(default=0)
@@ -150,37 +148,13 @@ class SMSRateLimit(models.Model):
         Returns:
             tuple: (can_send: bool, wait_seconds: int, message: str)
         """
-        now = timezone.now()
-        
-        # Если заблокирован
-        if self.blocked_until and now < self.blocked_until:
-            wait_seconds = int((self.blocked_until - now).total_seconds())
-            return False, wait_seconds, f"Слишком много попыток. Подождите {wait_seconds // 60} мин. {wait_seconds % 60} сек."
-        
-        # После блокировки — сбрасываем счётчик
-        if self.blocked_until and now >= self.blocked_until:
-            self.attempts = 0
-            self.blocked_until = None
-            self.save()
-        
-        # Проверяем время с последней попытки (2 минуты между попытками)
-        time_since_last = (now - self.last_attempt_at).total_seconds()
-        if time_since_last < 120:  # 2 минуты
-            wait_seconds = int(120 - time_since_last)
-            return False, wait_seconds, f"Подождите {wait_seconds} сек. перед повторной отправкой"
-        
+        # Ограничения отключены
         return True, 0, "OK"
     
     def record_attempt(self):
         """Записать попытку отправки SMS"""
         self.attempts += 1
         self.last_attempt_at = timezone.now()
-        
-        # После 2-х попыток — блокировка на 5 минут
-        if self.attempts >= 2:
-            self.blocked_until = timezone.now() + timedelta(minutes=5)
-            self.attempts = 0  # Сбрасываем счётчик после блокировки
-        
         self.save()
     
     @classmethod
