@@ -82,26 +82,16 @@ TEMPLATES = [
 
 # --- Database ---
 # По умолчанию SQLite для локалки; при наличии POSTGRES_DB переключаемся на Postgres
-POSTGRES_DB = os.environ.get('POSTGRES_DB')
-
-if POSTGRES_DB:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': POSTGRES_DB,
-            'USER': os.environ.get('POSTGRES_USER', ''),
-            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
-            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "dreamhouse_db",
+        "USER": "dreamuser",
+        "PASSWORD": "21012005",
+        "HOST": "localhost",
+        "PORT": "5432",
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 # --- REST Framework ---
 REST_FRAMEWORK = {
