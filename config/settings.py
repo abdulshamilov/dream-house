@@ -196,6 +196,17 @@ SMSRU_API_ID = os.environ.get(
 SEND_REAL_SMS = os.environ.get('SEND_REAL_SMS', 'False').lower() == 'true'
 SMS_DEBUG_RETURN_OTP = os.environ.get('SMS_DEBUG_RETURN_OTP', 'False').lower() == 'true'
 
+# --- Push Notifications ---
+# Firebase (Android)
+FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', None)
+
+# APNs (iOS)
+APNS_KEY_PATH = os.environ.get('APNS_KEY_PATH', None)  # Путь к .p8 файлу
+APNS_KEY_ID = os.environ.get('APNS_KEY_ID', None)       # Key ID из Apple Developer
+APNS_TEAM_ID = os.environ.get('APNS_TEAM_ID', None)     # Team ID из Apple Developer
+APNS_BUNDLE_ID = os.environ.get('APNS_BUNDLE_ID', None) # Bundle ID приложения
+APNS_USE_SANDBOX = os.environ.get('APNS_USE_SANDBOX', 'True').lower() == 'true'
+
 # --- Logging ---
 LOGGING = {
     'version': 1,

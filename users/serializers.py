@@ -215,3 +215,9 @@ class SMSVerifySerializer(serializers.Serializer):
         if not value.isdigit():
             raise serializers.ValidationError("OTP must contain only digits")
         return value
+
+
+class FCMTokenSerializer(serializers.Serializer):
+    """Сериализатор для сохранения FCM токена устройства"""
+    token = serializers.CharField(max_length=500, required=True)
+    platform = serializers.ChoiceField(choices=['android', 'ios'], required=True)

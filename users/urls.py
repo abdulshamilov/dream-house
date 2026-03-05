@@ -15,6 +15,7 @@ from .views import (
     DeleteAccountView,
     SMSRequestView,
     SMSVerifyView,
+    FCMTokenView,
 )
 
 
@@ -34,4 +35,5 @@ urlpatterns = [
     path('delete-account/', DeleteAccountView.as_view(), name='delete-account'),   # DELETE для удаления аккаунта
     path('sms/request/', SMSRequestView.as_view(), name='sms-request'),  # Запрос OTP по SMS
     path('sms/verify/', SMSVerifyView.as_view(), name='sms-verify'),    # Проверка OTP и вход
+    path('fcm-token/', FCMTokenView.as_view(), name='fcm-token'),       # FCM токен для push-уведомлений
 ]

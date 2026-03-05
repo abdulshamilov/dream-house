@@ -24,9 +24,9 @@ from .serializers import (
     CustomTokenObtainPairSerializer, PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer, TokenSerializer, ReferralLinkSerializer,
     ChangePasswordSerializer, UpdateProfileSerializer, DeleteAccountSerializer,
-    SMSRequestSerializer, SMSVerifySerializer,
+    SMSRequestSerializer, SMSVerifySerializer, FCMTokenSerializer,
 )
-from .models import Referral, PasswordResetOTP, LoginOTP
+from .models import Referral, PasswordResetOTP, LoginOTP, FCMDeviceToken
 
 # Standard Library
 import uuid
@@ -1098,3 +1098,70 @@ class SMSVerifyView(APIView):
             'user': UserSerializer(user, context={'request': request}).data,
             'is_new': False
         }, status=200)
+
+
+class FCMTokenView(APIView):
+    """Сохранение FCM токена устройства для push-уведомлений"""
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        request=FCMTokenSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name="FCMTokenResponse",
+                    fields={"detail": serializers.CharField()},
+                ),
+                description="Токен успешно сохранён",
+            ),
+            400: OpenApiResponse(description="Неверные данные"),
+        },
+        tags=["Push Notifications"],
+        summary="Сохранить FCM токен устройства"
+    )
+    def post(self, request):
+        serializer = FCMTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        token = serializer.validated_data['token']
+        platform = serializer.validated_data['platform']
+        
+        # Удаляем старый токен, если он привязан к другому пользователю
+        FCMDeviceToken.objects.filter(token=token).exclude(user=request.user).delete()
+        
+        # Обновляем или создаём токен для текущего пользователя
+        device_token, created = FCMDeviceToken.objects.update_or_create(
+            token=token,
+            defaults={
+                'user': request.user,
+                'platform': platform,
+                'is_active': True,
+            }
+        )
+        
+        return Response({
+            "detail": "Токен успешно сохранён" if created else "Токен обновлён"
+        }, status=status.HTTP_200_OK)
+    
+    @extend_schema(
+        request=inline_serializer(
+            name="FCMTokenDeleteRequest",
+            fields={"token": serializers.CharField()},
+        ),
+        responses={
+            200: OpenApiResponse(description="Токен удалён"),
+            404: OpenApiResponse(description="Токен не найден"),
+        },
+        tags=["Push Notifications"],
+        summary="Удалить FCM токен (выход с устройства)"
+    )
+    def delete(self, request):
+        token = request.data.get('token')
+        if not token:
+            return Response({"detail": "token обязателен"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted, _ = FCMDeviceToken.objects.filter(token=token, user=request.user).delete()
+        
+        if deleted:
+            return Response({"detail": "Токен удалён"}, status=status.HTTP_200_OK)
+        return Response({"detail": "Токен не найден"}, status=status.HTTP_404_NOT_FOUND)

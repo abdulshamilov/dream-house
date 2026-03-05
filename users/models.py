@@ -174,3 +174,34 @@ class SMSRateLimit(models.Model):
     
     def __str__(self):
         return f"Rate limit for {self.phone_number}: {self.attempts} attempts"
+
+
+class FCMDeviceToken(models.Model):
+    """Токены устройств для push-уведомлений (FCM для Android, APNs для iOS)"""
+    
+    PLATFORM_CHOICES = (
+        ('android', 'Android'),
+        ('ios', 'iOS'),
+    )
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='device_tokens'
+    )
+    token = models.CharField(max_length=500, unique=True)
+    platform = models.CharField(max_length=10, choices=PLATFORM_CHOICES)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "FCM Device Token"
+        verbose_name_plural = "FCM Device Tokens"
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['platform', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.phone_number} - {self.platform} ({self.token[:20]}...)"

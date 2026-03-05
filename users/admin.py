@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django import forms
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 
-from .models import User, Referral
+from .models import User, Referral, FCMDeviceToken
 
 
 # ---------- Форма создания пользователя ----------
@@ -129,3 +129,35 @@ class ReferralAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         # reward_amount пересчитается в модели
         super().save_model(request, obj, form, change)
+
+
+@admin.register(FCMDeviceToken)
+class FCMDeviceTokenAdmin(admin.ModelAdmin):
+    list_display = ('user', 'platform', 'is_active', 'token_preview', 'created_at', 'updated_at')
+    list_filter = ('platform', 'is_active', 'created_at')
+    search_fields = ('user__phone_number', 'user__name', 'token')
+    readonly_fields = ('token', 'created_at', 'updated_at')
+    list_editable = ('is_active',)
+    
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'platform', 'is_active')
+        }),
+        ('Токен', {
+            'fields': ('token',),
+            'classes': ('collapse',)
+        }),
+        ('Даты', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def token_preview(self, obj):
+        """Показать первые 30 символов токена"""
+        return f"{obj.token[:30]}..." if len(obj.token) > 30 else obj.token
+    token_preview.short_description = 'Токен'
+    
+    def has_add_permission(self, request):
+        # Токены создаются только через API
+        return False
