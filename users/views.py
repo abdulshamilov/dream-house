@@ -764,6 +764,11 @@ class SMSRequestView(APIView):
         
         phone_number = serializer.validated_data['phone_number']
 
+        # --- Специальный тестовый аккаунт ---
+        if phone_number == '+79887851557':
+            return Response({"detail": "Код отправлен на ваш номер"}, status=200)
+        # ------------------------------------
+
         # Разрешаем вход только уже зарегистрированным пользователям
         if not User.objects.filter(phone_number=phone_number).exists():
             return Response(
@@ -1064,6 +1069,21 @@ class SMSVerifyView(APIView):
         
         phone_number = serializer.validated_data['phone_number']
         otp = serializer.validated_data['otp']
+
+        # --- Специальный тестовый аккаунт ---
+        if phone_number == '+79887851557' and otp == '111222':
+            user, _ = User.objects.get_or_create(
+                phone_number='+79887851557',
+                defaults={'name': 'Test User', 'is_active': True},
+            )
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': UserSerializer(user, context={'request': request}).data,
+                'is_new': False,
+            }, status=200)
+        # ------------------------------------
 
         # Вход только для уже зарегистрированных пользователей
         try:
