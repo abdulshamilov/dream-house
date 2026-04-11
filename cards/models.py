@@ -702,3 +702,7 @@ class PrivacyPolicy(models.Model):
     def get_active(cls):
         """Получить активную политику конфиденциальности"""
         return cls.objects.filter(is_active=True).first()
+
+
+# Импорт для автообнаружения миграций
+from .models_deeplink import DeepLinkConfig  # noqa: E402, F401

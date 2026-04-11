@@ -5,6 +5,7 @@ from .models import (
     CallRequest, DiscountRequest, Recommendation, AIAssistant, ChatMessage,
     CardDocumentList, ViewHistory, Promotion, PromotionItem, PrivacyPolicy
 )
+from .models_deeplink import DeepLinkConfig
 
 # 🔹 Inlines для связанных моделей
 class CardImageInline(admin.TabularInline):
@@ -460,3 +461,32 @@ class PrivacyPolicyAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         """При активации деактивировать остальные"""
         super().save_model(request, obj, form, change)
+
+
+# ------------------------------------------------------------------ #
+#  Deep Link Configuration (singleton)
+# ------------------------------------------------------------------ #
+
+@admin.register(DeepLinkConfig)
+class DeepLinkConfigAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'ios_bundle_id', 'android_package_name')
+
+    fieldsets = (
+        ('iOS (Universal Links)', {
+            'fields': ('ios_team_id', 'ios_bundle_id', 'appstore_url'),
+        }),
+        ('Android (App Links)', {
+            'fields': ('android_package_name', 'android_sha256_fingerprint', 'playstore_url'),
+        }),
+        ('Deep Link пути', {
+            'fields': ('deep_link_paths',),
+            'description': 'Пути, которые будут перехватываться приложением. Через запятую.',
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # Нельзя создать вторую запись
+        return not DeepLinkConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
