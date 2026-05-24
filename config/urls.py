@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.http import JsonResponse, HttpResponse
 from django.urls import path, include
+
+admin.site.site_header = "Dream House — Управление"
+admin.site.site_title = "Dream House Admin"
+admin.site.index_title = "Панель управления"
 from django.views.decorators.http import require_GET
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -180,6 +184,9 @@ urlpatterns = [
 
     
     path('api/notifications/', include('notifications.urls')),
+
+    # --- CRM (Leads & Managers) ---
+    path('api/leads/', include('crm.urls')),
 
     # --- Deep-link verification ---
     path('.well-known/apple-app-site-association', apple_app_site_association),

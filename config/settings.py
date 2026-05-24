@@ -28,7 +28,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.postgres',
 
     'corsheaders',
 
@@ -41,6 +40,7 @@ INSTALLED_APPS = [
     'cards',
     'developers',
     'notifications',
+    'crm',
 ]
 
 # --- Middleware ---
@@ -81,17 +81,24 @@ TEMPLATES = [
 ]
 
 # --- Database ---
-# По умолчанию SQLite для локалки; при наличии POSTGRES_DB переключаемся на Postgres
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "dreamhouse_db",
-        "USER": "dreamuser",
-        "PASSWORD": "21012005",
-        "HOST": "localhost",
-        "PORT": "5432",
+if os.environ.get("POSTGRES_DB"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("POSTGRES_DB", "dreamhouse_db"),
+            "USER": os.environ.get("POSTGRES_USER", "dreamuser"),
+            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "21012005"),
+            "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # --- REST Framework ---
 REST_FRAMEWORK = {
@@ -222,3 +229,8 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
 }
+
+# --- CRM / Telegram Bot ---
+WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', 'change_me_webhook_secret')
+BOT_API_SECRET = os.environ.get('BOT_API_SECRET', 'change_me_bot_secret')
+BOT_NOTIFY_URL = os.environ.get('BOT_NOTIFY_URL', 'http://127.0.0.1:8001')

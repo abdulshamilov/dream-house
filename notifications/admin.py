@@ -35,6 +35,7 @@ class NotificationAdmin(admin.ModelAdmin):
     search_fields = ['title', 'message', 'user__phone_number']
     readonly_fields = ['created_at']
     ordering = ['-created_at']
+    date_hierarchy = 'created_at'
     autocomplete_fields = ['user', 'card', 'promotion']
     
     fieldsets = (
@@ -168,4 +169,7 @@ class NotificationSettingsAdmin(admin.ModelAdmin):
     list_filter = ['push_enabled', 'email_enabled', 'promotions']
     search_fields = ['user__phone_number', 'user__name']
     list_editable = ['push_enabled', 'email_enabled', 'new_cards', 'price_changes', 'promotions']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user')
 

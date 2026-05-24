@@ -18,3 +18,8 @@ staticfiles/
 
 # System
 .DS_Store
+
+# Env files with secrets
+.env
+config/settings_local.py
+telegram_bot/.env

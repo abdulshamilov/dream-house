@@ -9,7 +9,7 @@ try:
     from dotenv import load_dotenv
     # Load from the project root directory
     env_path = Path(__file__).resolve().parent / '.env'
-    load_dotenv(env_path)
+    load_dotenv(env_path, override=True)
 except ImportError:
     # dotenv not installed, continue without it
     pass

@@ -146,6 +146,15 @@ class Card(models.Model):
     
     
 class CallRequest(models.Model):
+    STATUS_NEW = 'new'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_PROCESSED = 'processed'
+    STATUS_CHOICES = (
+        (STATUS_NEW, 'Новый'),
+        (STATUS_IN_PROGRESS, 'В работе'),
+        (STATUS_PROCESSED, 'Обработан'),
+    )
+
     card = models.ForeignKey(
         Card,
         on_delete=models.CASCADE,
@@ -156,9 +165,40 @@ class CallRequest(models.Model):
     preferred_time = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_processed = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_NEW,
+        verbose_name='Статус',
+    )
+
+    class Meta:
+        verbose_name = 'Заявка на звонок'
+        verbose_name_plural = 'Заявки на звонок'
 
     def __str__(self):
         return f"Заявка от {self.name} ({self.phone_number})"
+
+
+class NewCallRequest(CallRequest):
+    class Meta:
+        proxy = True
+        verbose_name = 'Новая заявка'
+        verbose_name_plural = 'Новые заявки'
+
+
+class InProgressCallRequest(CallRequest):
+    class Meta:
+        proxy = True
+        verbose_name = 'Заявка в работе'
+        verbose_name_plural = 'В работе'
+
+
+class ProcessedCallRequest(CallRequest):
+    class Meta:
+        proxy = True
+        verbose_name = 'Обработанная заявка'
+        verbose_name_plural = 'Обработанные'
 
 
 class CardImage(models.Model):

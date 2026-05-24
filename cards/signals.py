@@ -1,7 +1,7 @@
 import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Card, DiscountRequest, Promotion
+from .models import Card, DiscountRequest, Promotion, CallRequest
 from developers.models import Subscription
 from notifications.models import Notification
 
@@ -15,6 +15,25 @@ try:
 except ImportError:
     logger.warning("Channels не установлен. WebSocket уведомления отключены.")
     HAS_CHANNELS = False
+
+@receiver(post_save, sender=CallRequest)
+def create_lead_from_call_request(sender, instance, created, **kwargs):
+    if not created:
+        return
+    from crm.models import Lead, LeadHistory
+    lead = Lead.objects.create(
+        name=instance.name,
+        phone=instance.phone_number,
+        jk=instance.card.title,
+        source='call_request',
+        raw_data={
+            'call_request_id': instance.id,
+            'card_id': instance.card_id,
+            'preferred_time': instance.preferred_time or '',
+        },
+    )
+    LeadHistory.objects.create(lead=lead, action='created')
+
 
 @receiver(post_save, sender=Card)
 def notify_developer_subscribers(sender, instance, created, **kwargs):
