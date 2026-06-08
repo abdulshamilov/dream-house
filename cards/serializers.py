@@ -275,6 +275,8 @@ class CardSerializer(serializers.ModelSerializer):
             'images', 'floor_plans', 'videos', 'documents', 'document_lists',
             'reviews', 'questions',
             'list_curations',
+            'is_pinned',
+            'is_hidden',
             'created_at',
             'is_favorite'
         ]
