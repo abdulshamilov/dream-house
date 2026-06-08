@@ -119,7 +119,7 @@ class PromotionListView(generics.ListAPIView):
     responses=CardSerializer(many=True)
 )
 class CardFilterPostView(generics.GenericAPIView):
-    queryset = Card.objects.all()
+    queryset = Card.objects.filter(is_hidden=False)
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -138,7 +138,7 @@ class CardFilterPostView(generics.GenericAPIView):
     responses=CardSerializer
 )
 class CardDetailView(generics.RetrieveAPIView):
-    queryset = Card.objects.all()
+    queryset = Card.objects.filter(is_hidden=False)
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -170,7 +170,7 @@ class CardDetailView(generics.RetrieveAPIView):
 )
 class FavoriteAPIView(generics.GenericAPIView):
     """Управление избранными карточками пользователя"""
-    queryset = Card.objects.all()
+    queryset = Card.objects.filter(is_hidden=False)
     permission_classes = [IsAuthenticated]
     serializer_class = FavoriteSerializer
 
@@ -216,7 +216,7 @@ class MyFavoritesListAPIView(generics.ListAPIView):
 )
 class RateCardView(generics.GenericAPIView):
     """Добавление оценки карточке и обновление рейтинга"""
-    queryset = Card.objects.all()
+    queryset = Card.objects.filter(is_hidden=False)
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
@@ -557,7 +557,7 @@ class CardSearchView(APIView):
             SearchHistory.objects.create(user=self.request.user, query=query)
 
         # Базовый queryset для фильтрации
-        queryset = Card.objects.all()
+        queryset = Card.objects.filter(is_hidden=False)
 
         # Применить умные фильтры на основе содержания запроса
         smart_filters = self._build_filters(normalized_query)
@@ -922,7 +922,7 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
 )
 class CardCurationsView(generics.RetrieveAPIView):
     """Подборка похожих квартир (curations) - список с полной информацией"""
-    queryset = Card.objects.all()
+    queryset = Card.objects.filter(is_hidden=False)
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
     
@@ -987,13 +987,13 @@ class PersonalRecommendationsView(generics.ListAPIView):
         
         if not preference_ids:
             # Нет данных — показываем топ по рейтингу с новыми первыми
-            return Card.objects.all().order_by('-rating', '-created_at')[:30]
-        
+            return Card.objects.filter(is_hidden=False).order_by('-rating', '-created_at')[:30]
+
         # Анализируем предпочтения пользователя
         pref_cards = Card.objects.filter(id__in=set(preference_ids))
-        
+
         if not pref_cards.exists():
-            return Card.objects.all().order_by('-rating', '-created_at')[:30]
+            return Card.objects.filter(is_hidden=False).order_by('-rating', '-created_at')[:30]
         
         # Собираем статистику предпочтений
         from collections import Counter
@@ -1031,7 +1031,7 @@ class PersonalRecommendationsView(generics.ListAPIView):
         from django.db.models import Case, When, Value, IntegerField
         
         # Базовый queryset БЕЗ фильтра по score — сначала аннотируем всё
-        all_cards = Card.objects.exclude(id__in=exclude_ids).annotate(
+        all_cards = Card.objects.filter(is_hidden=False).exclude(id__in=exclude_ids).annotate(
             # Очки релевантности
             relevance_score=Case(
                 When(city__in=top_cities, then=Value(30)),
