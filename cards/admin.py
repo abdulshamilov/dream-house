@@ -75,19 +75,20 @@ class PromotionItemInline(admin.TabularInline):
 class CardAdmin(admin.ModelAdmin):
     list_display = [
         'thumbnail', 'title', 'developer', 'price', 'area', 'rooms', 'city',
-        'category', 'house_type', 'rating', 'created_at'
+        'category', 'house_type', 'rating', 'is_pinned', 'is_hidden', 'created_at'
     ]
     list_display_links = ['thumbnail', 'title']
-    list_editable = ['price']
+    list_editable = ['price', 'is_pinned', 'is_hidden']
     search_fields = ['title', 'address', 'description', 'developer__name']
     list_filter = [
+        'is_pinned', 'is_hidden',
         'city', 'complex_type', 'house_type', 'category', 'finishing',
         'elevator', 'parking', 'balcony', 'loggia'
     ]
     date_hierarchy = 'created_at'
     exclude = ['owner']
     inlines = [CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
-    actions = ['duplicate_cards']
+    actions = ['duplicate_cards', 'pin_cards', 'unpin_cards', 'hide_cards', 'show_cards']
     actions_on_top = True
     actions_on_bottom = True
 
@@ -103,6 +104,40 @@ class CardAdmin(admin.ModelAdmin):
             return format_html('<img src="{}" style="height:48px; width:64px; object-fit:cover; border-radius:4px;">', first.image.url)
         return format_html('<span style="color:#ccc;">—</span>')
     thumbnail.short_description = "Фото"
+
+    def pin_badge(self, obj):
+        if obj.is_pinned:
+            return format_html('<span style="color:#e67e22;font-size:16px;" title="Закреплён">📌</span>')
+        return format_html('<span style="color:#ddd;">—</span>')
+    pin_badge.short_description = "Пин"
+    pin_badge.admin_order_field = 'is_pinned'
+
+    def hidden_badge(self, obj):
+        if obj.is_hidden:
+            return format_html('<span style="background:#e74c3c;color:#fff;padding:2px 7px;border-radius:8px;font-size:11px;">Скрыт</span>')
+        return format_html('<span style="background:#27ae60;color:#fff;padding:2px 7px;border-radius:8px;font-size:11px;">Виден</span>')
+    hidden_badge.short_description = "Видимость"
+    hidden_badge.admin_order_field = 'is_hidden'
+
+    @admin.action(description="📌 Закрепить выбранные")
+    def pin_cards(self, request, queryset):
+        updated = queryset.update(is_pinned=True)
+        self.message_user(request, f"Закреплено объектов: {updated}")
+
+    @admin.action(description="📌 Открепить выбранные")
+    def unpin_cards(self, request, queryset):
+        updated = queryset.update(is_pinned=False)
+        self.message_user(request, f"Откреплено объектов: {updated}")
+
+    @admin.action(description="🙈 Скрыть выбранные")
+    def hide_cards(self, request, queryset):
+        updated = queryset.update(is_hidden=True)
+        self.message_user(request, f"Скрыто объектов: {updated}")
+
+    @admin.action(description="👁 Показать выбранные")
+    def show_cards(self, request, queryset):
+        updated = queryset.update(is_hidden=False)
+        self.message_user(request, f"Сделано видимыми: {updated}")
 
     def save_model(self, request, obj, form, change):
         is_new = not change

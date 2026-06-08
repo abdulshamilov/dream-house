@@ -99,10 +99,13 @@ class Card(models.Model):
         help_text="JSON массив ID карточек для подборок (рекомендации, похожие объекты)"
     )
 
+    is_hidden = models.BooleanField(default=False, db_index=True, verbose_name='Скрыт')
+    is_pinned = models.BooleanField(default=False, db_index=True, verbose_name='Закреплён')
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['-is_pinned', '-created_at']
         indexes = [
             models.Index(fields=['title']),
             models.Index(fields=['city']),

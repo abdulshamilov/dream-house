@@ -77,7 +77,7 @@ class CityListView(APIView):
     ]
 )
 class CardListView(generics.ListAPIView):
-    queryset = Card.objects.all()
+    queryset = Card.objects.filter(is_hidden=False)
     serializer_class = CardSerializer
     permission_classes = [permissions.AllowAny]
     filter_backends = [DjangoFilterBackend]
