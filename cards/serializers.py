@@ -34,11 +34,19 @@ class CardQuestionSerializer(serializers.ModelSerializer):
 class DeveloperInCardSerializer(serializers.ModelSerializer):
     """Отображает ID, имя, логотип застройщика и статус подписки"""
     is_subscribed = serializers.SerializerMethodField()
-    
+    logo = serializers.SerializerMethodField()
+
     class Meta:
         model = Developer
         fields = ['id', 'name', 'logo', 'is_subscribed']
-    
+
+    def get_logo(self, obj):
+        if obj.logo:
+            request = self.context.get('request') if self.context else None
+            url = obj.logo.url
+            return request.build_absolute_uri(url) if request else url
+        return ""
+
     @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):
         request = self.context.get('request') if self.context else None
@@ -46,8 +54,7 @@ class DeveloperInCardSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             from developers.models import Subscription
             return Subscription.objects.filter(user=user, developer=obj).exists()
-        return False 
-
+        return False
 
 # -------------------------------
 # Изображения, Видео, Документы

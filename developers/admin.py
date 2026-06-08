@@ -14,7 +14,7 @@ class DeveloperAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(
             _cards_count=Count('cards', distinct=True),
-            _subscribers_count=Count('subscriptions', distinct=True),
+            _subscribers_count=Count('subscribers', distinct=True),
         )
 
     def logo_preview(self, obj):
