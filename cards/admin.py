@@ -76,7 +76,8 @@ class InstallmentPlanInline(admin.TabularInline):
     fields = [
         'is_cash', 'apartment_type', 'term_months',
         'price_per_sqm',
-        'down_payment_type', 'down_payment_percent', 'down_payment_min_amount',
+        'down_payment_type', 'down_payment_percent',
+        'down_payment_min_amount', 'down_payment_max_amount',
         'accepts_mat_capital', 'is_active',
     ]
     show_change_link = True
@@ -722,7 +723,7 @@ class InstallmentPlanAdmin(admin.ModelAdmin):
         ('ЖК', {'fields': ('card', 'apartment_type', 'is_active')}),
         ('Тип и срок', {'fields': ('is_cash', 'term_months')}),
         ('Цена', {'fields': ('price_per_sqm',)}),
-        ('Взнос', {'fields': ('down_payment_type', 'down_payment_percent', 'down_payment_min_amount')}),
+        ('Взнос', {'fields': ('down_payment_type', 'down_payment_percent', 'down_payment_min_amount', 'down_payment_max_amount')}),
         ('Мат. капитал', {'fields': ('accepts_mat_capital', 'mat_capital_note')}),
         ('Доп. условия', {'fields': ('note', 'extra_conditions')}),
         ('Период действия', {'fields': ('valid_from', 'valid_until')}),

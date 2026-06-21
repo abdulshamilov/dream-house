@@ -15,6 +15,8 @@ from .serializers import (
     PaymentOptionsSerializer,
     InstallmentCalculateSerializer,
     InstallmentCalculateResultSerializer,
+    InstallmentMatchInputSerializer,
+    InstallmentMatchResultSerializer,
 )
 
 
@@ -113,4 +115,83 @@ class InstallmentCalculateView(APIView):
             'down_payment': down_payment,
             'monthly_payment': monthly,
             'term_months': plan.term_months,
+        }).data)
+
+
+class InstallmentMatchView(APIView):
+    """
+    Калькулятор рассрочки: по сумме взноса и сроку находит подходящий план
+    и возвращает ежемесячный платёж.
+
+    Логика матчинга:
+    - Планы хранят down_payment_min_amount как нижнюю границу диапазона.
+    - Из всех планов, где min_amount <= down_payment, берётся с наибольшим порогом.
+    - Например: планы 300к, 500к, 1М; взнос 800к → план 500к.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        request=InstallmentMatchInputSerializer,
+        responses={
+            200: InstallmentMatchResultSerializer,
+            400: {'description': 'Взнос меньше минимального или срок превышает максимальный'},
+        },
+        description=(
+            'Калькулятор рассрочки. '
+            'Принимает down_payment (сумма взноса) и term_months (срок). '
+            'Возвращает подходящий план, total_price, down_payment, monthly_payment.'
+        ),
+    )
+    def post(self, request, pk):
+        card = get_object_or_404(Card, pk=pk)
+
+        inp = InstallmentMatchInputSerializer(data=request.data)
+        inp.is_valid(raise_exception=True)
+        down_payment = inp.validated_data['down_payment']
+        term_months = inp.validated_data['term_months']
+
+        # Ищем план где down_payment попадает в диапазон [min, max]
+        # Если max не задан — нет верхней границы
+        plan = (
+            _active_plans(card)
+            .filter(is_cash=False, down_payment_type='fixed')
+            .filter(down_payment_min_amount__lte=down_payment)
+            .filter(
+                Q(down_payment_max_amount__isnull=True) |
+                Q(down_payment_max_amount__gte=down_payment)
+            )
+            .order_by('-down_payment_min_amount')
+            .first()
+        )
+
+        if plan is None:
+            min_plan = (
+                _active_plans(card)
+                .filter(is_cash=False, down_payment_type='fixed')
+                .order_by('down_payment_min_amount')
+                .first()
+            )
+            min_required = min_plan.down_payment_min_amount if min_plan else None
+            return Response(
+                {'detail': f'Минимальный взнос: {min_required} ₽'},
+                status=400,
+            )
+
+        if term_months > plan.term_months:
+            return Response(
+                {'detail': f'Максимальный срок для этого плана: {plan.term_months} мес.'},
+                status=400,
+            )
+
+        total_price = plan.total_price_for_card(card)
+        monthly = ((total_price - down_payment) / term_months).quantize(Decimal('0.01'))
+
+        return Response(InstallmentMatchResultSerializer({
+            'plan_id': plan.pk,
+            'price_per_sqm': plan.price_per_sqm,
+            'total_price': total_price,
+            'down_payment': down_payment,
+            'monthly_payment': monthly,
+            'term_months': term_months,
+            'max_term_months': plan.term_months,
         }).data)

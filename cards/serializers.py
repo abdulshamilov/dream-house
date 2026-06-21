@@ -437,6 +437,28 @@ class InstallmentCalculateResultSerializer(serializers.Serializer):
     monthly_payment = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
     term_months = serializers.IntegerField()
 
+
+class InstallmentMatchInputSerializer(serializers.Serializer):
+    down_payment = serializers.DecimalField(
+        max_digits=12, decimal_places=2,
+        min_value=Decimal('0'),
+        help_text='Сумма первоначального взноса',
+    )
+    term_months = serializers.IntegerField(
+        min_value=1,
+        help_text='Желаемый срок рассрочки в месяцах',
+    )
+
+
+class InstallmentMatchResultSerializer(serializers.Serializer):
+    plan_id = serializers.IntegerField()
+    price_per_sqm = serializers.DecimalField(max_digits=10, decimal_places=2)
+    total_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    down_payment = serializers.DecimalField(max_digits=12, decimal_places=2)
+    monthly_payment = serializers.DecimalField(max_digits=14, decimal_places=2)
+    term_months = serializers.IntegerField()
+    max_term_months = serializers.IntegerField()
+
 # -------------------------------
 # Сериализатор для истории поиска
 # -------------------------------

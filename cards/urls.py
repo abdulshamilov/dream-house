@@ -38,7 +38,7 @@ from .views_ai import (
     ChatHistoryView,
     RateAIResponseView,
 )
-from .views_installment import CardPaymentOptionsView, InstallmentCalculateView
+from .views_installment import CardPaymentOptionsView, InstallmentCalculateView, InstallmentMatchView
 
 urlpatterns = [
     path("", CardListView.as_view(), name="cards_list"),
@@ -83,4 +83,5 @@ urlpatterns = [
     # РАССРОЧКА
     path("<int:pk>/payment-options/", CardPaymentOptionsView.as_view(), name="card_payment_options"),
     path("installment/calculate/", InstallmentCalculateView.as_view(), name="installment_calculate"),
+    path("<int:pk>/installment/match/", InstallmentMatchView.as_view(), name="installment_match"),
 ]

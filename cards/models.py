@@ -809,8 +809,15 @@ class InstallmentPlan(models.Model):
     down_payment_min_amount = models.DecimalField(
         max_digits=12, decimal_places=2,
         null=True, blank=True,
-        verbose_name='Взнос, ₽',
-        help_text='Фиксированная сумма взноса в рублях',
+        verbose_name='Взнос от, ₽',
+        help_text='Нижняя граница диапазона взноса',
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    down_payment_max_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        null=True, blank=True,
+        verbose_name='Взнос до, ₽',
+        help_text='Верхняя граница диапазона взноса (пусто = без ограничений)',
         validators=[MinValueValidator(Decimal('0'))],
     )
 
@@ -866,6 +873,11 @@ class InstallmentPlan(models.Model):
                 raise ValidationError('Укажите процент взноса')
             if self.down_payment_type == 'fixed' and self.down_payment_min_amount is None:
                 raise ValidationError('Укажите фиксированную сумму взноса')
+            if (self.down_payment_type == 'fixed'
+                    and self.down_payment_min_amount is not None
+                    and self.down_payment_max_amount is not None
+                    and self.down_payment_max_amount <= self.down_payment_min_amount):
+                raise ValidationError('Взнос до должен быть больше Взнос от')
             # Проверяем что взнос не превышает стоимость (ежемесячный платёж не отрицательный)
             if self.price_per_sqm and self.card_id:
                 card_area = self.card.area
