@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 # DRF
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
@@ -7,7 +9,8 @@ from .models import (
     Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CallRequest,
     CardReview, CardQuestion, SearchHistory, ReviewLike,
     Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
-    CardDocumentList, ViewHistory, Promotion, PromotionItem
+    CardDocumentList, ViewHistory, Promotion, PromotionItem,
+    InstallmentPlan, CardPromotion,
 )
 from developers.models import Developer
 
@@ -346,6 +349,93 @@ class FavoriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Favorite
         fields = ['id', 'card']
+
+
+# ============ INSTALLMENT SERIALIZERS ============
+
+class CardPromotionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CardPromotion
+        fields = ['id', 'type', 'title', 'description', 'valid_from', 'valid_until']
+
+
+class CashOptionSerializer(serializers.ModelSerializer):
+    total_price = serializers.SerializerMethodField()
+    extra_conditions = serializers.JSONField()
+
+    class Meta:
+        model = InstallmentPlan
+        fields = [
+            'id', 'price_per_sqm', 'total_price',
+            'accepts_mat_capital', 'mat_capital_note', 'note',
+            'extra_conditions', 'valid_from', 'valid_until',
+        ]
+
+    @extend_schema_field(serializers.DecimalField(max_digits=14, decimal_places=2))
+    def get_total_price(self, plan):
+        card = self.context['card']
+        if card.area and card.area > 0:
+            return (plan.price_per_sqm * card.area).quantize(Decimal('0.01'))
+        return Decimal(str(card.price)).quantize(Decimal('0.01'))
+
+
+class InstallmentOptionSerializer(serializers.ModelSerializer):
+    total_price = serializers.SerializerMethodField()
+    down_payment = serializers.SerializerMethodField()
+    monthly_payment = serializers.SerializerMethodField()
+    extra_conditions = serializers.JSONField()
+
+    class Meta:
+        model = InstallmentPlan
+        fields = [
+            'id', 'apartment_type', 'term_months',
+            'price_per_sqm', 'total_price',
+            'down_payment_type', 'down_payment_percent', 'down_payment_min_amount',
+            'down_payment', 'monthly_payment',
+            'accepts_mat_capital', 'mat_capital_note',
+            'note', 'extra_conditions', 'valid_from', 'valid_until',
+        ]
+
+    def _total(self, plan) -> Decimal:
+        card = self.context['card']
+        if card.area and card.area > 0:
+            return (plan.price_per_sqm * card.area).quantize(Decimal('0.01'))
+        return Decimal(str(card.price)).quantize(Decimal('0.01'))
+
+    @extend_schema_field(serializers.DecimalField(max_digits=14, decimal_places=2))
+    def get_total_price(self, plan):
+        return self._total(plan)
+
+    @extend_schema_field(serializers.DecimalField(max_digits=14, decimal_places=2))
+    def get_down_payment(self, plan):
+        return plan.calculate_down_payment(self._total(plan)).quantize(Decimal('0.01'))
+
+    @extend_schema_field(serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True))
+    def get_monthly_payment(self, plan):
+        result = plan.calculate_monthly_payment(self._total(plan))
+        return result.quantize(Decimal('0.01')) if result is not None else None
+
+
+class PaymentOptionsSerializer(serializers.Serializer):
+    card_id = serializers.IntegerField()
+    prices_on_request = serializers.BooleanField()
+    accepts_car_barter = serializers.BooleanField()
+    accepts_land_barter = serializers.BooleanField()
+    cash_option = CashOptionSerializer(allow_null=True)
+    installment_options = InstallmentOptionSerializer(many=True)
+    promotions = CardPromotionSerializer(many=True)
+
+
+# calculate endpoint
+class InstallmentCalculateSerializer(serializers.Serializer):
+    plan_id = serializers.IntegerField()
+
+
+class InstallmentCalculateResultSerializer(serializers.Serializer):
+    total_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    down_payment = serializers.DecimalField(max_digits=14, decimal_places=2)
+    monthly_payment = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
+    term_months = serializers.IntegerField()
 
 # -------------------------------
 # Сериализатор для истории поиска

@@ -38,6 +38,7 @@ from .views_ai import (
     ChatHistoryView,
     RateAIResponseView,
 )
+from .views_installment import CardPaymentOptionsView, InstallmentCalculateView
 
 urlpatterns = [
     path("", CardListView.as_view(), name="cards_list"),
@@ -79,4 +80,7 @@ urlpatterns = [
     path("ai/chat/<int:pk>/rate/", RateAIResponseView.as_view(), name="rate_ai_response"),
     # 🔑 ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ
     path("privacy-policy/", PrivacyPolicyView.as_view(), name="privacy_policy"),
+    # РАССРОЧКА
+    path("<int:pk>/payment-options/", CardPaymentOptionsView.as_view(), name="card_payment_options"),
+    path("installment/calculate/", InstallmentCalculateView.as_view(), name="installment_calculate"),
 ]

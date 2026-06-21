@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import Avg
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -98,6 +99,14 @@ class Card(models.Model):
         blank=True,
         help_text="JSON массив ID карточек для подборок (рекомендации, похожие объекты)"
     )
+
+    prices_on_request = models.BooleanField(
+        default=False,
+        verbose_name='Цены по запросу',
+        help_text='Цены и условия по запросу у менеджера',
+    )
+    accepts_car_barter = models.BooleanField(default=False, verbose_name='Бартер авто')
+    accepts_land_barter = models.BooleanField(default=False, verbose_name='Бартер земли')
 
     is_hidden = models.BooleanField(default=False, db_index=True, verbose_name='Скрыт')
     is_pinned = models.BooleanField(default=False, db_index=True, verbose_name='Закреплён')
@@ -745,6 +754,179 @@ class PrivacyPolicy(models.Model):
     def get_active(cls):
         """Получить активную политику конфиденциальности"""
         return cls.objects.filter(is_active=True).first()
+
+
+class InstallmentPlan(models.Model):
+    APARTMENT_TYPE_CHOICES = [
+        ('studio', 'Студия'),
+        ('1k', '1-комнатная'),
+        ('2k', '2-комнатная'),
+        ('3k', '3-комнатная'),
+        ('2e', '2-евро'),
+        ('3e', '3-евро'),
+    ]
+
+    DOWN_PAYMENT_TYPE_CHOICES = [
+        ('percent', 'Процент от стоимости'),
+        ('fixed', 'Фиксированная сумма'),
+    ]
+
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='installment_plans',
+    )
+    apartment_type = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=APARTMENT_TYPE_CHOICES,
+        help_text='Если тариф только для конкретного типа квартиры',
+    )
+
+    is_cash = models.BooleanField(
+        default=False,
+        help_text='True = наличная цена (term_months игнорируется)',
+    )
+    term_months = models.PositiveIntegerField(
+        default=0,
+        help_text='Срок рассрочки в месяцах. 0 для is_cash=True',
+    )
+
+    down_payment_type = models.CharField(
+        max_length=10,
+        choices=DOWN_PAYMENT_TYPE_CHOICES,
+        blank=True,
+        verbose_name='Тип взноса',
+        help_text='Процент или фиксированная сумма',
+    )
+    down_payment_percent = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        null=True, blank=True,
+        verbose_name='Взнос, %',
+        help_text='Процент от стоимости квартиры',
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
+    )
+    down_payment_min_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        null=True, blank=True,
+        verbose_name='Взнос, ₽',
+        help_text='Фиксированная сумма взноса в рублях',
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+
+    price_per_sqm = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        verbose_name='Цена за м²',
+        help_text='Цена за м² при этом тарифе',
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+
+    accepts_mat_capital = models.BooleanField(default=False, verbose_name='Мат. капитал')
+    mat_capital_note = models.CharField(
+        max_length=255, blank=True,
+        help_text='Условия принятия мат. капитала',
+    )
+
+    extra_conditions = models.JSONField(
+        default=dict, blank=True,
+        help_text='Нестандартные условия, не покрытые полями',
+    )
+    note = models.TextField(blank=True)
+
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['card', 'is_cash', 'term_months']
+        indexes = [
+            models.Index(fields=['card', 'is_active']),
+        ]
+        verbose_name = 'Тариф рассрочки'
+        verbose_name_plural = 'Тарифы рассрочки'
+
+    def __str__(self):
+        if self.is_cash:
+            return f'{self.card.title} — наличные ({self.price_per_sqm} ₽/м²)'
+        return f'{self.card.title} — {self.term_months} мес. ({self.price_per_sqm} ₽/м²)'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.is_cash and self.term_months != 0:
+            raise ValidationError('Для наличной оплаты term_months должен быть 0')
+        if not self.is_cash and self.term_months == 0:
+            raise ValidationError('Для рассрочки term_months должен быть > 0')
+        if not self.is_cash:
+            if not self.down_payment_type:
+                raise ValidationError('Укажите тип взноса')
+            if self.down_payment_type == 'percent' and self.down_payment_percent is None:
+                raise ValidationError('Укажите процент взноса')
+            if self.down_payment_type == 'fixed' and self.down_payment_min_amount is None:
+                raise ValidationError('Укажите фиксированную сумму взноса')
+            # Проверяем что взнос не превышает стоимость (ежемесячный платёж не отрицательный)
+            if self.price_per_sqm and self.card_id:
+                card_area = self.card.area
+                if card_area and card_area > 0:
+                    total = self.price_per_sqm * Decimal(str(card_area))
+                    down = self.calculate_down_payment(total)
+                    if down > total:
+                        raise ValidationError(
+                            f'Взнос ({down} ₽) превышает стоимость ({total} ₽) — '
+                            'ежемесячный платёж будет отрицательным'
+                        )
+
+    def calculate_down_payment(self, total_price: Decimal) -> Decimal:
+        if self.down_payment_type == 'percent' and self.down_payment_percent is not None:
+            return total_price * self.down_payment_percent / 100
+        if self.down_payment_type == 'fixed' and self.down_payment_min_amount is not None:
+            return self.down_payment_min_amount
+        return Decimal(0)
+
+    def total_price_for_card(self, card) -> Decimal:
+        return (self.price_per_sqm * card.area).quantize(Decimal('0.01'))
+
+    def calculate_monthly_payment(self, total_price: Decimal):
+        if self.is_cash or self.term_months == 0:
+            return None
+        down = self.calculate_down_payment(total_price)
+        return (total_price - down) / self.term_months
+
+
+class CardPromotion(models.Model):
+    PROMOTION_TYPES = [
+        ('discount', 'Скидка'),
+        ('charity', 'Благотворительность'),
+        ('barter', 'Бартер'),
+        ('gift', 'Подарок'),
+        ('other', 'Другое'),
+    ]
+
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name='card_promotions',
+    )
+    type = models.CharField(max_length=20, choices=PROMOTION_TYPES, verbose_name='Тип')
+    title = models.CharField(max_length=255, verbose_name='Заголовок')
+    description = models.TextField(verbose_name='Описание')
+
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Спец-условие / акция ЖК'
+        verbose_name_plural = 'Спец-условия / акции ЖК'
+
+    def __str__(self):
+        return f'{self.card.title} — {self.title}'
 
 
 # Импорт для автообнаружения миграций

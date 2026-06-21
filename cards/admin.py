@@ -5,7 +5,8 @@ from .models import (
     Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,
     CallRequest, NewCallRequest, InProgressCallRequest, ProcessedCallRequest,
     DiscountRequest, Recommendation, AIAssistant, ChatMessage,
-    CardDocumentList, ViewHistory, Promotion, PromotionItem, PrivacyPolicy
+    CardDocumentList, ViewHistory, Promotion, PromotionItem, PrivacyPolicy,
+    InstallmentPlan, CardPromotion,
 )
 from .models_deeplink import DeepLinkConfig
 
@@ -69,6 +70,25 @@ class PromotionItemInline(admin.TabularInline):
     readonly_fields = ['benefit_amount']
 
 
+class InstallmentPlanInline(admin.TabularInline):
+    model = InstallmentPlan
+    extra = 1
+    fields = [
+        'is_cash', 'apartment_type', 'term_months',
+        'price_per_sqm',
+        'down_payment_type', 'down_payment_percent', 'down_payment_min_amount',
+        'accepts_mat_capital', 'is_active',
+    ]
+    show_change_link = True
+
+
+class CardPromotionInline(admin.TabularInline):
+    model = CardPromotion
+    extra = 1
+    fields = ['type', 'title', 'description', 'valid_from', 'valid_until', 'is_active']
+    show_change_link = True
+
+
 # ==================== CARD ====================
 
 @admin.register(Card)
@@ -87,7 +107,7 @@ class CardAdmin(admin.ModelAdmin):
     ]
     date_hierarchy = 'created_at'
     exclude = ['owner']
-    inlines = [CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline]
+    inlines = [CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline, InstallmentPlanInline, CardPromotionInline]
     actions = ['duplicate_cards', 'pin_cards', 'unpin_cards', 'hide_cards', 'show_cards']
     actions_on_top = True
     actions_on_bottom = True
@@ -144,6 +164,15 @@ class CardAdmin(admin.ModelAdmin):
         if is_new and not obj.owner_id:
             obj.owner = request.user
         super().save_model(request, obj, form, change)
+        if not obj.prices_on_request:
+            active_plans = InstallmentPlan.objects.filter(card=obj, is_active=True).exists()
+            if not active_plans:
+                self.message_user(
+                    request,
+                    f'Внимание: у ЖК «{obj.title}» нет активных тарифов рассрочки. '
+                    'Добавьте хотя бы один или включите «Цены по запросу».',
+                    level='warning',
+                )
         if is_new and obj.developer:
             from developers.models import Subscription
             from notifications.models import Notification
@@ -676,3 +705,68 @@ class DeepLinkConfigAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# ==================== РАССРОЧКА ====================
+
+@admin.register(InstallmentPlan)
+class InstallmentPlanAdmin(admin.ModelAdmin):
+    list_display = ['card', 'plan_label', 'price_per_sqm', 'accepts_mat_capital', 'is_active', 'updated_at']
+    list_filter = ['is_active', 'is_cash', 'accepts_mat_capital', 'card__city']
+    search_fields = ['card__title']
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['card']
+    actions = ['duplicate_plans', 'activate_plans', 'deactivate_plans']
+
+    fieldsets = (
+        ('ЖК', {'fields': ('card', 'apartment_type', 'is_active')}),
+        ('Тип и срок', {'fields': ('is_cash', 'term_months')}),
+        ('Цена', {'fields': ('price_per_sqm',)}),
+        ('Взнос', {'fields': ('down_payment_type', 'down_payment_percent', 'down_payment_min_amount')}),
+        ('Мат. капитал', {'fields': ('accepts_mat_capital', 'mat_capital_note')}),
+        ('Доп. условия', {'fields': ('note', 'extra_conditions')}),
+        ('Период действия', {'fields': ('valid_from', 'valid_until')}),
+        ('Метаданные', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
+
+    def plan_label(self, obj):
+        if obj.is_cash:
+            return 'Наличные'
+        return f'{obj.term_months} мес.'
+    plan_label.short_description = 'Тариф'
+
+    @admin.action(description='Дублировать выбранные планы')
+    def duplicate_plans(self, request, queryset):
+        count = 0
+        for plan in queryset:
+            plan.pk = None
+            plan.id = None
+            plan.save()
+            count += 1
+        self.message_user(request, f'Создано копий: {count}')
+
+    @admin.action(description='Активировать выбранные')
+    def activate_plans(self, request, queryset):
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f'Активировано: {updated}')
+
+    @admin.action(description='Деактивировать выбранные')
+    def deactivate_plans(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f'Деактивировано: {updated}')
+
+
+@admin.register(CardPromotion)
+class CardPromotionAdmin(admin.ModelAdmin):
+    list_display = ['card', 'type', 'title', 'valid_until', 'is_active', 'created_at']
+    list_filter = ['is_active', 'type', 'card__city']
+    search_fields = ['card__title', 'title', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['card']
+
+    fieldsets = (
+        ('ЖК', {'fields': ('card', 'is_active')}),
+        ('Акция', {'fields': ('type', 'title', 'description')}),
+        ('Период действия', {'fields': ('valid_from', 'valid_until')}),
+        ('Метаданные', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
+    )
