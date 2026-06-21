@@ -186,11 +186,16 @@ class InstallmentMatchView(APIView):
         total_price = plan.total_price_for_card(card)
         monthly = ((total_price - down_payment) / term_months).quantize(Decimal('0.01'))
 
+        down_from = plan.down_payment_min_amount if plan.down_payment_min_amount is not None else Decimal('0')
+        down_to = plan.down_payment_max_amount if plan.down_payment_max_amount is not None else total_price
+
         return Response(InstallmentMatchResultSerializer({
             'plan_id': plan.pk,
             'price_per_sqm': plan.price_per_sqm,
             'total_price': total_price,
             'down_payment': down_payment,
+            'down_payment_from': down_from,
+            'down_payment_to': down_to,
             'monthly_payment': monthly,
             'term_months': term_months,
             'max_term_months': plan.term_months,

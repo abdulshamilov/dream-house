@@ -455,6 +455,8 @@ class InstallmentMatchResultSerializer(serializers.Serializer):
     price_per_sqm = serializers.DecimalField(max_digits=10, decimal_places=2)
     total_price = serializers.DecimalField(max_digits=14, decimal_places=2)
     down_payment = serializers.DecimalField(max_digits=12, decimal_places=2)
+    down_payment_from = serializers.DecimalField(max_digits=12, decimal_places=2)
+    down_payment_to = serializers.DecimalField(max_digits=12, decimal_places=2)
     monthly_payment = serializers.DecimalField(max_digits=14, decimal_places=2)
     term_months = serializers.IntegerField()
     max_term_months = serializers.IntegerField()
