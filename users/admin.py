@@ -119,7 +119,7 @@ class FCMDeviceTokenAdmin(admin.ModelAdmin):
     list_display = ('user', 'platform_badge', 'is_active', 'token_preview', 'created_at', 'updated_at')
     list_filter = ('platform', 'is_active', 'created_at')
     search_fields = ('user__phone_number', 'user__name', 'token')
-    readonly_fields = ('token', 'created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at')
     list_editable = ('is_active',)
     date_hierarchy = 'created_at'
 
@@ -142,5 +142,4 @@ class FCMDeviceTokenAdmin(admin.ModelAdmin):
         return f"{obj.token[:30]}..." if len(obj.token) > 30 else obj.token
     token_preview.short_description = 'Токен'
 
-    def has_add_permission(self, request):
-        return False
+    pass

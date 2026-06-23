@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from .models import Card, DiscountRequest, Promotion, CallRequest
 from developers.models import Subscription
 from notifications.models import Notification
+from users.push_service import PushNotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,19 @@ def notify_developer_subscribers(sender, instance, created, **kwargs):
             message=f"{instance.developer.name}: {instance.title} — {instance.price}₽, {instance.rooms} комн."
         )
 
+    # FCM push-уведомления (работают даже когда приложение закрыто)
+    for sub in subs:
+        try:
+            PushNotificationService.send_to_user(
+                sub.user,
+                title="Новая квартира от застройщика",
+                body=f"{instance.developer.name}: {instance.title} — {instance.price}₽, {instance.rooms} комн.",
+                notification_type=PushNotificationService.TYPE_PROPERTY,
+                data={"card_id": str(instance.id)},
+            )
+        except Exception as e:
+            logger.warning(f"FCM error for user {sub.user.id}: {e}")
+
     # Если channels установлен, отправляем WebSocket уведомление
     if HAS_CHANNELS:
         try:
@@ -97,15 +111,31 @@ def notify_on_discount_request(sender, instance, created, **kwargs):
         message=f"Запрос на скидку отправлен владельцу {instance.card.title}. Статус: На рассмотрении"
     )
 
+    # FCM push-уведомления
+    try:
+        if instance.card.owner:
+            PushNotificationService.send_to_user(
+                instance.card.owner,
+                title="Запрос на скидку",
+                body=f"Пользователь предложил {instance.requested_price}₽ за {instance.card.title}",
+            )
+        PushNotificationService.send_to_user(
+            instance.user,
+            title="Ваш запрос на скидку отправлен",
+            body=f"Запрос отправлен владельцу {instance.card.title}",
+        )
+    except Exception as e:
+        logger.warning(f"FCM error on discount request: {e}")
+
     # WebSocket уведомления (только если channels настроены)
     if HAS_CHANNELS:
         try:
             channel_layer = get_channel_layer()
-            
+
             # Проверить что channel_layer не None
             if channel_layer is None:
                 return
-            
+
             # Уведомление владельцу
             if instance.card.owner:
                 async_to_sync(channel_layer.group_send)(
@@ -116,7 +146,7 @@ def notify_on_discount_request(sender, instance, created, **kwargs):
                         "message": f"Пользователь предложил {instance.requested_price}₽ за {instance.card.title}"
                     }
                 )
-            
+
             # Уведомление пользователю
             async_to_sync(channel_layer.group_send)(
                 f"user_{instance.user.id}",
@@ -172,13 +202,24 @@ def notify_users_on_promotion(sender, instance, created, **kwargs):
         Notification.objects.bulk_create(notifications_to_create)
         logger.info(f"Created {len(notifications_to_create)} notifications for promotion '{instance.title}'")
     
+    # FCM push-уведомления для акций
+    try:
+        PushNotificationService.send_to_users(
+            list(users_with_promo_enabled),
+            title=f"Новая акция: {instance.title}",
+            body=f"Посмотрите выгодные предложения в акции «{instance.title}»",
+            notification_type=PushNotificationService.TYPE_PROMOTION,
+        )
+    except Exception as e:
+        logger.warning(f"FCM error for promotion '{instance.title}': {e}")
+
     # WebSocket уведомления
     if HAS_CHANNELS:
         try:
             channel_layer = get_channel_layer()
             if channel_layer is None:
                 return
-            
+
             for user in users_with_promo_enabled:
                 async_to_sync(channel_layer.group_send)(
                     f"user_{user.id}",
