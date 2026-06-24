@@ -53,6 +53,7 @@ def referral_fallback(request, code):
     открывается в браузере — показываем страницу с кнопками на сторы.
     """
     cfg = _get_deeplink_config()
+    play_url = f"{cfg.playstore_url}&referrer=ref_code%3D{code}"
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -83,7 +84,7 @@ def referral_fallback(request, code):
     <h1>Dream House</h1>
     <p>Установите приложение, чтобы воспользоваться реферальной ссылкой <b>{code}</b></p>
     <a class="btn ios" href="{cfg.appstore_url}">App Store</a>
-    <a class="btn android" href="{cfg.playstore_url}">Google Play</a>
+    <a class="btn android" href="{play_url}">Google Play</a>
 </body>
 </html>"""
     return HttpResponse(html, content_type="text/html; charset=utf-8")
