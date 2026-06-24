@@ -351,7 +351,7 @@ class ReferralLinkView(APIView):
             request.user.referral_code = uuid.uuid4()
             request.user.save(update_fields=["referral_code"])
 
-        link = f"https://dreamhouse05.com/register/?ref={request.user.referral_code}"
+        link = f"https://dreamhouse05.com/ref/{request.user.referral_code}"
         return Response({"referral_link": link})
 
 
