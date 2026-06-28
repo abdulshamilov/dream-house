@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.db import transaction
+from django.db import models, transaction
 from django.utils.html import format_html
 from .models import (
     Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,
@@ -90,13 +90,38 @@ class CardPromotionInline(admin.TabularInline):
     show_change_link = True
 
 
+# ==================== FILTERS ====================
+
+class Has3DModelFilter(admin.SimpleListFilter):
+    """Фильтр по наличию 3D-модели у карточки."""
+    title = 'Есть 3D-модель'
+    parameter_name = 'has_3d_model'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Да'),
+            ('no', 'Нет'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.exclude(
+                models.Q(model_3d_glb='') | models.Q(model_3d_glb__isnull=True)
+            )
+        if self.value() == 'no':
+            return queryset.filter(
+                models.Q(model_3d_glb='') | models.Q(model_3d_glb__isnull=True)
+            )
+        return queryset
+
+
 # ==================== CARD ====================
 
 @admin.register(Card)
 class CardAdmin(admin.ModelAdmin):
     list_display = [
         'thumbnail', 'title', 'developer', 'price', 'area', 'rooms', 'city',
-        'category', 'house_type', 'rating', 'is_pinned', 'is_hidden', 'created_at'
+        'category', 'house_type', 'rating', 'has_3d_badge', 'is_pinned', 'is_hidden', 'created_at',
     ]
     list_display_links = ['thumbnail', 'title']
     list_editable = ['price', 'is_pinned', 'is_hidden']
@@ -104,11 +129,51 @@ class CardAdmin(admin.ModelAdmin):
     list_filter = [
         'is_pinned', 'is_hidden',
         'city', 'complex_type', 'house_type', 'category', 'finishing',
-        'elevator', 'parking', 'balcony', 'loggia'
+        'elevator', 'parking', 'balcony', 'loggia',
+        Has3DModelFilter,
     ]
     date_hierarchy = 'created_at'
     exclude = ['owner']
-    inlines = [CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline, CardReviewInline, CardQuestionInline, InstallmentPlanInline, CardPromotionInline]
+    fieldsets = [
+        (None, {
+            'fields': [
+                'developer', 'title', 'address', 'description', 'phone', 'price',
+            ],
+        }),
+        ('Характеристики', {
+            'fields': [
+                'rooms', 'city', 'complex_type', 'house_type', 'area', 'category',
+                'floors_total', 'ceiling_height',
+                'elevator', 'parking', 'balcony', 'loggia', 'finishing',
+            ],
+        }),
+        ('Местоположение', {
+            'fields': ['latitude', 'longitude'],
+            'classes': ('collapse',),
+        }),
+        ('Условия', {
+            'fields': [
+                'prices_on_request', 'accepts_car_barter', 'accepts_land_barter',
+                'is_pinned', 'is_hidden',
+            ],
+        }),
+        ('Подборки и рейтинг', {
+            'fields': ['list_curations', 'rating', 'rating_count'],
+            'classes': ('collapse',),
+        }),
+        ('3D модель', {
+            'fields': ['model_3d_glb', 'model_3d_usdz', 'model_3d_poster'],
+            'classes': ('collapse',),
+            'description': (
+                'Загрузите .glb (обязательно, макс 10 МБ) и .usdz (для AR на iOS). '
+                'Сжатие: <code>python manage.py compress_glb &lt;id&gt;</code>'
+            ),
+        }),
+    ]
+    inlines = [
+        CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline,
+        CardReviewInline, CardQuestionInline, InstallmentPlanInline, CardPromotionInline,
+    ]
     actions = ['duplicate_cards', 'pin_cards', 'unpin_cards', 'hide_cards', 'show_cards']
     actions_on_top = True
     actions_on_bottom = True
@@ -125,6 +190,13 @@ class CardAdmin(admin.ModelAdmin):
             return format_html('<img src="{}" style="height:48px; width:64px; object-fit:cover; border-radius:4px;">', first.image.url)
         return format_html('<span style="color:#ccc;">—</span>')
     thumbnail.short_description = "Фото"
+
+    def has_3d_badge(self, obj):
+        if obj.has_3d_model:
+            return format_html('<span style="color:#27ae60;font-size:16px;" title="Есть 3D-модель">&#10003;</span>')
+        return ''
+    has_3d_badge.short_description = '3D'
+    has_3d_badge.admin_order_field = 'model_3d_glb'
 
     def pin_badge(self, obj):
         if obj.is_pinned:

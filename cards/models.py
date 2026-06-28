@@ -1,8 +1,24 @@
-from django.db import models
+from typing import Any
+
 from django.conf import settings
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
+from django.db import models
 from django.db.models import Avg
 from decimal import Decimal, ROUND_HALF_UP
+
+
+def validate_file_size_10mb(value: Any) -> None:
+    """Проверяет, что загружаемый файл не превышает 10 МБ.
+
+    Используется для поля model_3d_glb модели Card.
+    При превышении рекомендует сжатие через gltf-transform draco.
+    """
+    limit = 10 * 1024 * 1024  # 10 МБ
+    if hasattr(value, 'size') and value.size > limit:
+        raise ValidationError(
+            "Файл слишком большой (макс 10 МБ). Сожми через gltf-transform draco"
+        )
 
 class Card(models.Model):
     CITY_CHOICES = (
@@ -113,6 +129,27 @@ class Card(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    model_3d_glb = models.FileField(
+        upload_to='apartments/3d/glb/%Y/%m/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(['glb']), validate_file_size_10mb],
+        verbose_name='3D модель (.glb)',
+    )
+    model_3d_usdz = models.FileField(
+        upload_to='apartments/3d/usdz/%Y/%m/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(['usdz'])],
+        verbose_name='3D модель AR (.usdz)',
+    )
+    model_3d_poster = models.ImageField(
+        upload_to='apartments/3d/posters/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name='Постер 3D модели',
+    )
+
     class Meta:
         ordering = ['-is_pinned', '-created_at']
         indexes = [
@@ -133,6 +170,11 @@ class Card(models.Model):
         if self.area and self.area > 0:
             return float(self.price) / float(self.area)
         return 0
+
+    @property
+    def has_3d_model(self) -> bool:
+        """Возвращает True если загружена 3D-модель в формате .glb."""
+        return bool(self.model_3d_glb)
 
     def update_rating(self):
         """Пересчитать средний рейтинг по отзывам"""

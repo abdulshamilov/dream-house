@@ -81,13 +81,14 @@ class CardCurationSerializer(serializers.ModelSerializer):
     developer = DeveloperInCardSerializer(read_only=True)
     is_favorite = serializers.SerializerMethodField()
     price_metr = serializers.SerializerMethodField()  # 🔑 НОВОЕ: Цена за кв.м
-    
+    has_3d_model = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = Card
         fields = [
             'id', 'title', 'address', 'price', 'price_metr',  # 🔑 НОВОЕ: Цена за кв.м
             'rooms', 'area', 'city', 'rating', 'developer', 'is_favorite',
-            'latitude', 'longitude'
+            'latitude', 'longitude', 'has_3d_model',
         ]
     
     @extend_schema_field(serializers.BooleanField)
@@ -259,9 +260,14 @@ class CardSerializer(serializers.ModelSerializer):
     questions = CardQuestionSerializer(many=True, read_only=True)
     is_favorite = serializers.SerializerMethodField()
     list_curations = serializers.SerializerMethodField()
-    
+
     developer = DeveloperInCardSerializer(read_only=True)
     price_metr = serializers.SerializerMethodField()
+
+    has_3d_model = serializers.BooleanField(read_only=True)
+    model_3d_glb = serializers.SerializerMethodField()
+    model_3d_usdz = serializers.SerializerMethodField()
+    model_3d_poster = serializers.SerializerMethodField()
 
     class Meta:
         model = Card
@@ -269,11 +275,11 @@ class CardSerializer(serializers.ModelSerializer):
             'id', 'title', 'address', 'description',
             'price', 'price_metr', 'phone',
             'rooms', 'city', 'complex_type', 'house_type',
-            'area', 'category', 'floors_total', 
+            'area', 'category', 'floors_total',
             'elevator', 'parking', 'balcony', 'loggia', 'finishing', 'ceiling_height',
             'latitude', 'longitude',
             'rating', 'rating_count',
-            'owner', 
+            'owner',
             'developer',
             'images', 'floor_plans', 'videos', 'documents', 'document_lists',
             'reviews', 'questions',
@@ -281,7 +287,8 @@ class CardSerializer(serializers.ModelSerializer):
             'is_pinned',
             'is_hidden',
             'created_at',
-            'is_favorite'
+            'is_favorite',
+            'has_3d_model', 'model_3d_glb', 'model_3d_usdz', 'model_3d_poster',
         ]
 
     @extend_schema_field(CardReviewSerializer(many=True))
@@ -310,6 +317,30 @@ class CardSerializer(serializers.ModelSerializer):
             return curations_ids if curations_ids else []
         except (json.JSONDecodeError, ValueError, TypeError):
             return []
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_model_3d_glb(self, obj: Card) -> str | None:
+        if not obj.model_3d_glb:
+            return None
+        request = self.context.get('request')
+        url = obj.model_3d_glb.url
+        return request.build_absolute_uri(url) if request else url
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_model_3d_usdz(self, obj: Card) -> str | None:
+        if not obj.model_3d_usdz:
+            return None
+        request = self.context.get('request')
+        url = obj.model_3d_usdz.url
+        return request.build_absolute_uri(url) if request else url
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_model_3d_poster(self, obj: Card) -> str | None:
+        if not obj.model_3d_poster:
+            return None
+        request = self.context.get('request')
+        url = obj.model_3d_poster.url
+        return request.build_absolute_uri(url) if request else url
 
 
 # -------------------------------
