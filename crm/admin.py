@@ -111,9 +111,9 @@ class LeadAdmin(admin.ModelAdmin):
 
 @admin.register(Manager)
 class ManagerAdmin(admin.ModelAdmin):
-    list_display = ['name', 'telegram_username', 'is_admin', 'active', 'leads_stats']
+    list_display = ['name', 'telegram_id', 'telegram_username', 'is_admin', 'active', 'leads_stats']
     list_filter = ['is_admin', 'active']
-    search_fields = ['name', 'telegram_username']
+    search_fields = ['name', 'telegram_username', 'telegram_id']
     list_editable = ['is_admin', 'active']
 
     def get_queryset(self, request):

@@ -63,9 +63,9 @@ async def cb_status_change(callback: CallbackQuery):
             parse_mode='HTML',
             reply_markup=lead_manager_kb(lead_id, new_status) if new_status not in ('deal', 'rejected') else None,
         )
+        await callback.answer()
     else:
         await callback.answer('Ошибка при изменении статуса', show_alert=True)
-    await callback.answer()
 
 
 # --- Комментарий (FSM) ---
