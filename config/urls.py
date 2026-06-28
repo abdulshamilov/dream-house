@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse, HttpResponse
 from django.urls import path, include
 
@@ -166,9 +167,9 @@ class CustomTokenRefreshView(TokenRefreshView):
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # --- Схема и Swagger ---
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    # --- Схема и Swagger (только для staff) ---
+    path("api/schema/", staff_member_required(SpectacularAPIView.as_view()), name="schema"),
+    path("api/docs/", staff_member_required(SpectacularSwaggerView.as_view(url_name="schema")), name="swagger-ui"),
 
     # --- Users ---
     path("api/users/", include("users.urls")),
