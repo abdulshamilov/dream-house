@@ -44,6 +44,34 @@ async def cmd_start(message: Message):
     )
 
 
+@router.message(Command('me'))
+async def cmd_me(message: Message):
+    tg_id = message.from_user.id
+    managers = await api.list_managers()
+
+    if managers is None or not isinstance(managers, list):
+        await message.answer(f'⚠️ API недоступен. Ваш Telegram ID: <code>{tg_id}</code>', parse_mode='HTML')
+        return
+
+    me = next((m for m in managers if m['telegram_id'] == tg_id), None)
+
+    lines = [f'🔍 <b>Ваш Telegram ID:</b> <code>{tg_id}</code>']
+    if me:
+        role = '👑 Руководитель' if me['is_admin'] else '👤 Менеджер'
+        lines.append(f'✅ Вы в системе: <b>{me["full_name"]}</b> — {role}')
+        lines.append(f'Активен: {"да" if me.get("active") else "нет"}')
+    else:
+        lines.append('❌ Вас нет в базе менеджеров')
+
+    lines.append(f'\n📋 Менеджеры в системе ({len(managers)}):')
+    for m in managers:
+        role = '👑' if m['is_admin'] else '👤'
+        active = '✅' if m.get('active') else '🚫'
+        lines.append(f'{active}{role} {m["full_name"]} — ID: <code>{m["telegram_id"]}</code>')
+
+    await message.answer('\n'.join(lines), parse_mode='HTML')
+
+
 @router.message(Command('search'))
 async def cmd_search(message: Message, state: FSMContext):
     await state.set_state(SearchState.waiting_query)

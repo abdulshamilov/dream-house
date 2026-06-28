@@ -9,15 +9,22 @@ from ..utils import format_lead
 router = Router()
 
 
-async def _is_admin(tg_id: int) -> bool:
+async def _is_admin(tg_id: int) -> tuple[bool, str]:
     managers = await api.list_managers()
+    if not managers:
+        return False, f'API недоступен или нет менеджеров. Ваш ID: {tg_id}'
     me = next((m for m in managers if m['telegram_id'] == tg_id), None)
-    return bool(me and me.get('is_admin'))
+    if not me:
+        return False, f'Вы не найдены в системе. Ваш ID: <code>{tg_id}</code>'
+    if not me.get('is_admin'):
+        return False, f'Вы не руководитель ({me["full_name"]})'
+    return True, ''
 
 
 @router.message(Command('all_leads'))
 async def cmd_all_leads(message: Message):
-    if not await _is_admin(message.from_user.id):
+    ok, _ = await _is_admin(message.from_user.id)
+    if not ok:
         return
     leads = await api.list_leads(message.from_user.id, status='new')
     if not leads:
@@ -33,7 +40,8 @@ async def cmd_all_leads(message: Message):
 
 @router.message(Command('stats'))
 async def cmd_stats(message: Message):
-    if not await _is_admin(message.from_user.id):
+    ok, _ = await _is_admin(message.from_user.id)
+    if not ok:
         return
     stats = await api.get_stats()
     by_status = stats.get('by_status', {})
@@ -59,8 +67,9 @@ async def cmd_stats(message: Message):
 
 @router.callback_query(F.data.startswith('assign:'))
 async def cb_assign(callback: CallbackQuery):
-    if not await _is_admin(callback.from_user.id):
-        await callback.answer('Нет доступа', show_alert=True)
+    ok, reason = await _is_admin(callback.from_user.id)
+    if not ok:
+        await callback.answer(f'Нет доступа: {reason}', show_alert=True)
         return
     lead_id = int(callback.data.split(':')[1])
     managers = await api.list_managers()
@@ -77,8 +86,9 @@ async def cb_assign(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('assign_to:'))
 async def cb_assign_to(callback: CallbackQuery):
-    if not await _is_admin(callback.from_user.id):
-        await callback.answer('Нет доступа', show_alert=True)
+    ok, reason = await _is_admin(callback.from_user.id)
+    if not ok:
+        await callback.answer(f'Нет доступа: {reason}', show_alert=True)
         return
     _, lead_id_s, manager_id_s = callback.data.split(':')
     lead_id, manager_id = int(lead_id_s), int(manager_id_s)
@@ -95,6 +105,6 @@ async def cb_assign_to(callback: CallbackQuery):
             f'✅ Заявка #{lead_id} назначена менеджеру <b>{name}</b>.',
             parse_mode='HTML',
         )
+        await callback.answer()
     else:
         await callback.answer('Ошибка при назначении', show_alert=True)
-    await callback.answer()
