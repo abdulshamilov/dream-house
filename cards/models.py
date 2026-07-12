@@ -825,6 +825,17 @@ class InstallmentPlan(models.Model):
         help_text='Если тариф только для конкретного типа квартиры',
     )
 
+    floor_from = models.PositiveIntegerField(
+        null=True, blank=True,
+        verbose_name='Этаж от',
+        help_text='Нижний этаж диапазона, для которого действует тариф (пусто = все этажи)',
+    )
+    floor_to = models.PositiveIntegerField(
+        null=True, blank=True,
+        verbose_name='Этаж до',
+        help_text='Верхний этаж диапазона (пусто = без ограничения)',
+    )
+
     is_cash = models.BooleanField(
         default=False,
         help_text='True = наличная цена (term_months игнорируется)',
@@ -890,20 +901,34 @@ class InstallmentPlan(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['card', 'is_cash', 'term_months']
+        ordering = ['card', 'floor_from', 'is_cash', 'term_months']
         indexes = [
             models.Index(fields=['card', 'is_active']),
         ]
         verbose_name = 'Тариф рассрочки'
         verbose_name_plural = 'Тарифы рассрочки'
 
+    @property
+    def floor_label(self):
+        """Читаемый диапазон этажей, например '2-8 этаж'."""
+        if self.floor_from and self.floor_to:
+            return f'{self.floor_from}-{self.floor_to} этаж'
+        if self.floor_from:
+            return f'с {self.floor_from} этажа'
+        if self.floor_to:
+            return f'до {self.floor_to} этажа'
+        return ''
+
     def __str__(self):
+        floors = f' [{self.floor_label}]' if self.floor_label else ''
         if self.is_cash:
-            return f'{self.card.title} — наличные ({self.price_per_sqm} ₽/м²)'
-        return f'{self.card.title} — {self.term_months} мес. ({self.price_per_sqm} ₽/м²)'
+            return f'{self.card.title}{floors} — наличные ({self.price_per_sqm} ₽/м²)'
+        return f'{self.card.title}{floors} — {self.term_months} мес. ({self.price_per_sqm} ₽/м²)'
 
     def clean(self):
         from django.core.exceptions import ValidationError
+        if self.floor_from and self.floor_to and self.floor_to < self.floor_from:
+            raise ValidationError('Этаж до должен быть не меньше Этаж от')
         if self.is_cash and self.term_months != 0:
             raise ValidationError('Для наличной оплаты term_months должен быть 0')
         if not self.is_cash and self.term_months == 0:

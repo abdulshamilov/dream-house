@@ -65,21 +65,25 @@ class CardPaymentOptionsView(APIView):
                 'accepts_car_barter': card.accepts_car_barter,
                 'accepts_land_barter': card.accepts_land_barter,
                 'cash_option': None,
+                'cash_options': [],
                 'installment_options': [],
                 'promotions': promotions,
             }, context=ctx).data
             return Response(data)
 
         plans = _active_plans(card)
-        cash_plan = plans.filter(is_cash=True).first()
-        installment_plans = list(plans.filter(is_cash=False).order_by('term_months'))
+        cash_plans = list(plans.filter(is_cash=True).order_by('floor_from'))
+        installment_plans = list(
+            plans.filter(is_cash=False).order_by('floor_from', 'term_months', '-down_payment_min_amount')
+        )
 
         data = PaymentOptionsSerializer({
             'card_id': card.pk,
             'prices_on_request': False,
             'accepts_car_barter': card.accepts_car_barter,
             'accepts_land_barter': card.accepts_land_barter,
-            'cash_option': cash_plan,
+            'cash_option': cash_plans[0] if cash_plans else None,
+            'cash_options': cash_plans,
             'installment_options': installment_plans,
             'promotions': promotions,
         }, context=ctx).data

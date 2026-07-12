@@ -74,7 +74,7 @@ class InstallmentPlanInline(admin.TabularInline):
     model = InstallmentPlan
     extra = 1
     fields = [
-        'is_cash', 'apartment_type', 'term_months',
+        'is_cash', 'apartment_type', 'floor_from', 'floor_to', 'term_months',
         'price_per_sqm',
         'down_payment_type', 'down_payment_percent',
         'down_payment_min_amount', 'down_payment_max_amount',
@@ -784,7 +784,7 @@ class DeepLinkConfigAdmin(admin.ModelAdmin):
 
 @admin.register(InstallmentPlan)
 class InstallmentPlanAdmin(admin.ModelAdmin):
-    list_display = ['card', 'plan_label', 'price_per_sqm', 'accepts_mat_capital', 'is_active', 'updated_at']
+    list_display = ['card', 'floors_label', 'plan_label', 'price_per_sqm', 'accepts_mat_capital', 'is_active', 'updated_at']
     list_filter = ['is_active', 'is_cash', 'accepts_mat_capital', 'card__city']
     search_fields = ['card__title']
     readonly_fields = ['created_at', 'updated_at']
@@ -792,7 +792,7 @@ class InstallmentPlanAdmin(admin.ModelAdmin):
     actions = ['duplicate_plans', 'activate_plans', 'deactivate_plans']
 
     fieldsets = (
-        ('ЖК', {'fields': ('card', 'apartment_type', 'is_active')}),
+        ('ЖК', {'fields': ('card', 'apartment_type', 'floor_from', 'floor_to', 'is_active')}),
         ('Тип и срок', {'fields': ('is_cash', 'term_months')}),
         ('Цена', {'fields': ('price_per_sqm',)}),
         ('Взнос', {'fields': ('down_payment_type', 'down_payment_percent', 'down_payment_min_amount', 'down_payment_max_amount')}),
@@ -801,6 +801,10 @@ class InstallmentPlanAdmin(admin.ModelAdmin):
         ('Период действия', {'fields': ('valid_from', 'valid_until')}),
         ('Метаданные', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
+
+    def floors_label(self, obj):
+        return obj.floor_label or 'Все этажи'
+    floors_label.short_description = 'Этажи'
 
     def plan_label(self, obj):
         if obj.is_cash:

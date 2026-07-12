@@ -393,11 +393,13 @@ class CardPromotionSerializer(serializers.ModelSerializer):
 class CashOptionSerializer(serializers.ModelSerializer):
     total_price = serializers.SerializerMethodField()
     extra_conditions = serializers.JSONField()
+    floor_label = serializers.CharField(read_only=True)
 
     class Meta:
         model = InstallmentPlan
         fields = [
-            'id', 'price_per_sqm', 'total_price',
+            'id', 'floor_from', 'floor_to', 'floor_label',
+            'price_per_sqm', 'total_price',
             'accepts_mat_capital', 'mat_capital_note', 'note',
             'extra_conditions', 'valid_from', 'valid_until',
         ]
@@ -415,11 +417,12 @@ class InstallmentOptionSerializer(serializers.ModelSerializer):
     down_payment = serializers.SerializerMethodField()
     monthly_payment = serializers.SerializerMethodField()
     extra_conditions = serializers.JSONField()
+    floor_label = serializers.CharField(read_only=True)
 
     class Meta:
         model = InstallmentPlan
         fields = [
-            'id', 'apartment_type', 'term_months',
+            'id', 'apartment_type', 'floor_from', 'floor_to', 'floor_label', 'term_months',
             'price_per_sqm', 'total_price',
             'down_payment_type', 'down_payment_percent', 'down_payment_min_amount',
             'down_payment', 'monthly_payment',
@@ -453,6 +456,7 @@ class PaymentOptionsSerializer(serializers.Serializer):
     accepts_car_barter = serializers.BooleanField()
     accepts_land_barter = serializers.BooleanField()
     cash_option = CashOptionSerializer(allow_null=True)
+    cash_options = CashOptionSerializer(many=True)
     installment_options = InstallmentOptionSerializer(many=True)
     promotions = CardPromotionSerializer(many=True)
 
