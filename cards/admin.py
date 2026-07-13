@@ -1,4 +1,9 @@
+import re
+from decimal import Decimal, InvalidOperation
+
+from django import forms
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils.html import format_html
 from .models import (
@@ -9,6 +14,89 @@ from .models import (
     InstallmentPlan, CardPromotion,
 )
 from .models_deeplink import DeepLinkConfig
+
+
+# ==================== БЫСТРОЕ ЗАПОЛНЕНИЕ РАССРОЧКИ ====================
+
+_FLOOR_RE = re.compile(r'^(\d+)-(\d+)$')
+
+
+def _parse_money(token):
+    """'300к' → 300000, '1млн' → 1000000, '1.5млн' → 1500000, '90000' → 90000."""
+    t = token.lower().replace(',', '.').replace('₽', '')
+    mult = 1
+    if t.endswith('млн'):
+        mult, t = 1_000_000, t[:-3]
+    elif t.endswith('м'):
+        mult, t = 1_000_000, t[:-1]
+    elif t.endswith('тыс'):
+        mult, t = 1_000, t[:-3]
+    elif t.endswith(('к', 'k')):
+        mult, t = 1_000, t[:-1]
+    try:
+        return Decimal(t) * mult
+    except InvalidOperation:
+        raise ValidationError(f'Не удалось разобрать сумму «{token}»')
+
+
+def parse_quick_fill(text):
+    """
+    Одна строка = один тариф. Форматы:
+      нал 75000            — наличные (100% взнос), цена за м²
+      300к 90000 55        — взнос, цена за м², срок в месяцах
+      500к 85000 55 2-8    — то же + диапазон этажей
+      нал 70000 9-14       — наличные для этажей 9–14
+    Возвращает список dict для InstallmentPlan.
+    """
+    rows = []
+    for lineno, raw in enumerate(text.strip().splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        tokens = line.split()
+        floor_from = floor_to = None
+        m = _FLOOR_RE.match(tokens[-1])
+        if m:
+            floor_from, floor_to = int(m.group(1)), int(m.group(2))
+            tokens = tokens[:-1]
+
+        try:
+            if tokens[0].lower() in ('нал', 'наличные', '100%', 'cash'):
+                if len(tokens) != 2:
+                    raise ValidationError('нужно: нал <цена за м²>')
+                rows.append(dict(
+                    is_cash=True, term_months=0,
+                    price_per_sqm=_parse_money(tokens[1]),
+                    floor_from=floor_from, floor_to=floor_to,
+                ))
+            else:
+                if len(tokens) != 3:
+                    raise ValidationError('нужно: <взнос> <цена за м²> <срок мес.>')
+                rows.append(dict(
+                    is_cash=False,
+                    down_payment_type='fixed',
+                    down_payment_min_amount=_parse_money(tokens[0]),
+                    price_per_sqm=_parse_money(tokens[1]),
+                    term_months=int(tokens[2]),
+                    floor_from=floor_from, floor_to=floor_to,
+                ))
+        except (ValidationError, ValueError) as e:
+            msg = e.messages[0] if isinstance(e, ValidationError) else str(e)
+            raise ValidationError(f'Строка {lineno} («{raw.strip()}»): {msg}')
+
+    # Верхняя граница взноса = порог следующего тарифа − 1 ₽
+    # (в рамках одного диапазона этажей и срока)
+    installment = [r for r in rows if not r['is_cash']]
+    def group_key(r):
+        return (r['floor_from'], r['floor_to'], r['term_months'])
+    for r in installment:
+        higher = [
+            x['down_payment_min_amount'] for x in installment
+            if group_key(x) == group_key(r)
+            and x['down_payment_min_amount'] > r['down_payment_min_amount']
+        ]
+        r['down_payment_max_amount'] = (min(higher) - 1) if higher else None
+    return rows
 
 
 # ==================== INLINES ====================
@@ -134,6 +222,34 @@ class CardAdmin(admin.ModelAdmin):
     ]
     date_hierarchy = 'created_at'
     exclude = ['owner']
+
+    class CardAdminForm(forms.ModelForm):
+        installment_quick_fill = forms.CharField(
+            required=False,
+            label='Быстрое заполнение рассрочки',
+            widget=forms.Textarea(attrs={'rows': 6, 'placeholder': (
+                'нал 75000 2-8\n300к 90000 55 2-8\n500к 85000 55 2-8\n1млн 80000 55 2-8\n'
+                'нал 70000 9-14\n300к 85000 55 9-14'
+            )}),
+            help_text=(
+                'Одна строка — один тариф: <b>взнос&nbsp;цена_за_м²&nbsp;срок&nbsp;[этажи]</b>. '
+                'Суммы можно с «к» и «млн» (300к, 1млн). Для наличных: <b>нал&nbsp;цена</b>. '
+                'Этажи (например 2-8) — необязательны. '
+                '«Взнос до» проставится автоматически по порогу следующего тарифа.'
+            ),
+        )
+
+        class Meta:
+            model = Card
+            exclude = ['owner']
+
+        def clean_installment_quick_fill(self):
+            text = self.cleaned_data.get('installment_quick_fill', '')
+            # Валидируем сразу, чтобы ошибка показалась у поля
+            self.parsed_plans = parse_quick_fill(text) if text.strip() else []
+            return text
+
+    form = CardAdminForm
     fieldsets = [
         (None, {
             'fields': [
@@ -156,6 +272,14 @@ class CardAdmin(admin.ModelAdmin):
                 'prices_on_request', 'accepts_car_barter', 'accepts_land_barter',
                 'is_pinned', 'is_hidden',
             ],
+        }),
+        ('Рассрочка — быстрое заполнение', {
+            'fields': ['installment_quick_fill'],
+            'description': (
+                'Вставьте условия текстом — тарифы создадутся автоматически '
+                'при сохранении (существующие не трогаются). '
+                'Для точечных правок используйте таблицу «Тарифы рассрочки» ниже.'
+            ),
         }),
         ('Подборки и рейтинг', {
             'fields': ['list_curations', 'rating', 'rating_count'],
@@ -232,12 +356,21 @@ class CardAdmin(admin.ModelAdmin):
         updated = queryset.update(is_hidden=False)
         self.message_user(request, f"Сделано видимыми: {updated}")
 
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        plans = getattr(form, 'parsed_plans', [])
+        if plans:
+            InstallmentPlan.objects.bulk_create([
+                InstallmentPlan(card=form.instance, **p) for p in plans
+            ])
+            self.message_user(request, f'Быстрое заполнение: создано тарифов — {len(plans)}')
+
     def save_model(self, request, obj, form, change):
         is_new = not change
         if is_new and not obj.owner_id:
             obj.owner = request.user
         super().save_model(request, obj, form, change)
-        if not obj.prices_on_request:
+        if not obj.prices_on_request and not getattr(form, 'parsed_plans', []):
             active_plans = InstallmentPlan.objects.filter(card=obj, is_active=True).exists()
             if not active_plans:
                 self.message_user(

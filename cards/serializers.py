@@ -424,7 +424,8 @@ class InstallmentOptionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'apartment_type', 'floor_from', 'floor_to', 'floor_label', 'term_months',
             'price_per_sqm', 'total_price',
-            'down_payment_type', 'down_payment_percent', 'down_payment_min_amount',
+            'down_payment_type', 'down_payment_percent',
+            'down_payment_min_amount', 'down_payment_max_amount',
             'down_payment', 'monthly_payment',
             'accepts_mat_capital', 'mat_capital_note',
             'note', 'extra_conditions', 'valid_from', 'valid_until',
