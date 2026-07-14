@@ -75,38 +75,14 @@ class NotificationAdmin(admin.ModelAdmin):
         send_to_all = form.cleaned_data.get('send_to_all', False)
         
         if send_to_all and not change:
-            # Массовая рассылка - создаем уведомления для всех пользователей
+            # Массовая рассылка: ОДНА глобальная запись. Раньше вдобавок
+            # создавались персональные копии каждому пользователю — из-за
+            # этого в списке были дубли (глобальное + копия). Прочитанность
+            # и скрытие глобальных теперь ведёт NotificationUserState.
             obj.is_global = True
             obj.user = None
             super().save_model(request, obj, form, change)
-            
-            # Получаем всех активных пользователей
-            users = User.objects.filter(is_active=True)
-            
-            # Исключаем пользователей, которые отключили рассылку промо (если уведомление связано с акцией)
-            if obj.promotion or obj.type in ['discount', 'sale']:
-                users = users.exclude(notification_settings__promotions=False)
-            
-            notifications = []
-            for user in users:
-                notifications.append(
-                    Notification(
-                        user=user,
-                        title=obj.title,
-                        message=obj.message,
-                        type=obj.type,
-                        card=obj.card,
-                        promotion=obj.promotion,
-                        old_price=obj.old_price,
-                        is_global=False,  # Индивидуальные копии не глобальные
-                    )
-                )
-            
-            if notifications:
-                Notification.objects.bulk_create(notifications)
-                self.message_user(request, f"Создано глобальное уведомление и отправлено {len(notifications)} копий пользователям")
-            else:
-                self.message_user(request, "Глобальное уведомление создано, но нет активных пользователей", level='warning')
+            self.message_user(request, "Создано глобальное уведомление для всех пользователей")
         else:
             # Обычное сохранение
             super().save_model(request, obj, form, change)

@@ -67,6 +67,37 @@ class Notification(models.Model):
         ordering = ["-created_at"]
 
 
+class NotificationUserState(models.Model):
+    """Per-user состояние глобального уведомления (is_global=True).
+
+    У глобальных уведомлений одна строка на всех, поэтому «прочитано» и
+    «удалено» нельзя хранить в самой Notification — иначе действие одного
+    пользователя применялось бы ко всем. Персональные уведомления этой
+    таблицей не пользуются: у них is_read в самой строке, а удаление —
+    физическое.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notification_states",
+    )
+    notification = models.ForeignKey(
+        Notification,
+        on_delete=models.CASCADE,
+        related_name="user_states",
+    )
+    is_read = models.BooleanField(default=False)
+    # «Удалено у меня»: глобальное уведомление скрывается из списка
+    # пользователя, но остаётся у остальных.
+    is_hidden = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("user", "notification")
+        verbose_name = "Состояние уведомления у пользователя"
+        verbose_name_plural = "Состояния уведомлений у пользователей"
+
+
 class NotificationSettings(models.Model):
     """Per-user notification preferences."""
 

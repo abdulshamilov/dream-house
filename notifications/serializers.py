@@ -8,6 +8,7 @@ from .models import Notification, NotificationSettings
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.SerializerMethodField()
     card_id = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
@@ -47,6 +48,22 @@ class NotificationSerializer(serializers.ModelSerializer):
             "promotion_title",
             "promotion_banner_url",
         )
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_read(self, obj) -> bool:
+        # Персональное — is_read в самой строке.
+        if obj.user_id is not None:
+            return obj.is_read
+        # Глобальное — прочитанность конкретного пользователя.
+        # В списке она приходит аннотацией read_by_user (без лишних запросов),
+        # в одиночных ответах (mark-read) считаем по таблице состояний.
+        annotated = getattr(obj, "read_by_user", None)
+        if annotated is not None:
+            return bool(annotated)
+        request = self.context.get("request") if hasattr(self, "context") else None
+        if request is not None and request.user.is_authenticated:
+            return obj.user_states.filter(user=request.user, is_read=True).exists()
+        return obj.is_read
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_card_id(self, obj) -> Optional[str]:
