@@ -39,6 +39,38 @@ class NotificationMarkReadView(generics.UpdateAPIView):
         serializer.save(is_read=True)
 
 
+class NotificationMarkAllReadView(APIView):
+    """Пометить все персональные уведомления пользователя прочитанными."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=None, responses={200: None})
+    def post(self, request):
+        updated = Notification.objects.filter(
+            user=request.user, is_read=False
+        ).update(is_read=True)
+        return Response({"updated": updated})
+
+
+class NotificationDeleteView(generics.DestroyAPIView):
+    """Удалить одно уведомление (только своё персональное)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Notification.objects.none()
+        return Notification.objects.filter(user=self.request.user)
+
+
+class NotificationClearAllView(APIView):
+    """Удалить все персональные уведомления пользователя разом."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=None, responses={200: None})
+    def delete(self, request):
+        deleted, _ = Notification.objects.filter(user=request.user).delete()
+        return Response({"deleted": deleted})
+
+
 class NotificationSettingsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = NotificationSettingsSerializer
