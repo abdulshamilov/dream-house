@@ -798,6 +798,42 @@ class PrivacyPolicy(models.Model):
         return cls.objects.filter(is_active=True).first()
 
 
+class InstallmentTemplate(models.Model):
+    """
+    Шаблон условий рассрочки: условия одни, базовая цена — своя у каждого ЖК.
+    Текст шаблона: одна строка — один тариф, цена задаётся надбавкой к базе:
+        нал +0
+        300к +15000 55
+        500к +10000 55
+        1млн +5000 55
+    Применение в карточке (быстрое заполнение):
+        шаблон Стандарт55 75000 2-8
+        шаблон Стандарт55 70000 9-14
+    """
+    name = models.CharField(
+        max_length=100, unique=True,
+        verbose_name='Название',
+        help_text='Одно слово без пробелов, например Стандарт55',
+    )
+    text = models.TextField(
+        verbose_name='Условия',
+        help_text=(
+            'Одна строка — один тариф: «взнос +надбавка_к_цене срок» '
+            'или «нал +надбавка». Например: 300к +15000 55'
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Шаблон рассрочки'
+        verbose_name_plural = 'Шаблоны рассрочки'
+
+    def __str__(self):
+        return self.name
+
+
 class InstallmentPlan(models.Model):
     APARTMENT_TYPE_CHOICES = [
         ('studio', 'Студия'),

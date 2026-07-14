@@ -11,7 +11,7 @@ from .models import (
     CallRequest, NewCallRequest, InProgressCallRequest, ProcessedCallRequest,
     DiscountRequest, Recommendation, AIAssistant, ChatMessage,
     CardDocumentList, ViewHistory, Promotion, PromotionItem, PrivacyPolicy,
-    InstallmentPlan, CardPromotion,
+    InstallmentPlan, InstallmentTemplate, CardPromotion,
 )
 from .models_deeplink import DeepLinkConfig
 
@@ -39,13 +39,47 @@ def _parse_money(token):
         raise ValidationError(f'Не удалось разобрать сумму «{token}»')
 
 
+def _expand_template(name, base_price, floor_from, floor_to):
+    """Разворачивает шаблон условий в тарифы с ценой = база + надбавка."""
+    tpl = InstallmentTemplate.objects.filter(name__iexact=name).first()
+    if tpl is None:
+        known = ', '.join(InstallmentTemplate.objects.values_list('name', flat=True)) or 'нет ни одного'
+        raise ValidationError(f'Шаблон «{name}» не найден (есть: {known})')
+    rows = []
+    for raw in tpl.text.strip().splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        tokens = line.split()
+        if tokens[0].lower() in ('нал', 'наличные', '100%', 'cash'):
+            if len(tokens) != 2:
+                raise ValidationError(f'Шаблон «{name}», строка «{line}»: нужно «нал +надбавка»')
+            rows.append(dict(
+                is_cash=True, term_months=0,
+                price_per_sqm=base_price + _parse_money(tokens[1].lstrip('+')),
+                floor_from=floor_from, floor_to=floor_to,
+            ))
+        else:
+            if len(tokens) != 3:
+                raise ValidationError(f'Шаблон «{name}», строка «{line}»: нужно «взнос +надбавка срок»')
+            rows.append(dict(
+                is_cash=False,
+                down_payment_type='fixed',
+                down_payment_min_amount=_parse_money(tokens[0]),
+                price_per_sqm=base_price + _parse_money(tokens[1].lstrip('+')),
+                term_months=int(tokens[2]),
+                floor_from=floor_from, floor_to=floor_to,
+            ))
+    return rows
+
+
 def parse_quick_fill(text):
     """
     Одна строка = один тариф. Форматы:
-      нал 75000            — наличные (100% взнос), цена за м²
-      300к 90000 55        — взнос, цена за м², срок в месяцах
-      500к 85000 55 2-8    — то же + диапазон этажей
-      нал 70000 9-14       — наличные для этажей 9–14
+      нал 75000                  — наличные (100% взнос), цена за м²
+      300к 90000 55              — взнос, цена за м², срок в месяцах
+      500к 85000 55 2-8          — то же + диапазон этажей
+      шаблон Стандарт55 75000 2-8 — применить шаблон условий с базовой ценой
     Возвращает список dict для InstallmentPlan.
     """
     rows = []
@@ -61,7 +95,13 @@ def parse_quick_fill(text):
             tokens = tokens[:-1]
 
         try:
-            if tokens[0].lower() in ('нал', 'наличные', '100%', 'cash'):
+            if tokens[0].lower() in ('шаблон', 'template'):
+                if len(tokens) != 3:
+                    raise ValidationError('нужно: шаблон <название> <базовая цена за м²>')
+                rows.extend(_expand_template(
+                    tokens[1], _parse_money(tokens[2]), floor_from, floor_to,
+                ))
+            elif tokens[0].lower() in ('нал', 'наличные', '100%', 'cash'):
                 if len(tokens) != 2:
                     raise ValidationError('нужно: нал <цена за м²>')
                 rows.append(dict(
@@ -235,6 +275,8 @@ class CardAdmin(admin.ModelAdmin):
                 'Одна строка — один тариф: <b>взнос&nbsp;цена_за_м²&nbsp;срок&nbsp;[этажи]</b>. '
                 'Суммы можно с «к» и «млн» (300к, 1млн). Для наличных: <b>нал&nbsp;цена</b>. '
                 'Этажи (например 2-8) — необязательны. '
+                'Или примените шаблон условий: <b>шаблон&nbsp;Название&nbsp;базовая_цена&nbsp;[этажи]</b> '
+                '(шаблоны — в разделе «Шаблоны рассрочки»). '
                 '«Взнос до» проставится автоматически по порогу следующего тарифа.'
             ),
         )
@@ -914,6 +956,55 @@ class DeepLinkConfigAdmin(admin.ModelAdmin):
 
 
 # ==================== РАССРОЧКА ====================
+
+@admin.register(InstallmentTemplate)
+class InstallmentTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'preview', 'updated_at']
+    search_fields = ['name']
+
+    class TemplateForm(forms.ModelForm):
+        class Meta:
+            model = InstallmentTemplate
+            fields = '__all__'
+
+        def clean_name(self):
+            name = self.cleaned_data['name'].strip()
+            if ' ' in name:
+                raise ValidationError('Название — одно слово без пробелов')
+            return name
+
+        def clean_text(self):
+            text = self.cleaned_data['text']
+            # Проверяем строки на разбираемость (база 0 — только синтаксис)
+            tpl = InstallmentTemplate(name='__check__', text=text)
+            for raw in text.strip().splitlines():
+                line = raw.strip()
+                if not line or line.startswith('#'):
+                    continue
+                tokens = line.split()
+                try:
+                    if tokens[0].lower() in ('нал', 'наличные', '100%', 'cash'):
+                        if len(tokens) != 2:
+                            raise ValidationError('нужно «нал +надбавка»')
+                        _parse_money(tokens[1].lstrip('+'))
+                    else:
+                        if len(tokens) != 3:
+                            raise ValidationError('нужно «взнос +надбавка срок»')
+                        _parse_money(tokens[0])
+                        _parse_money(tokens[1].lstrip('+'))
+                        int(tokens[2])
+                except (ValidationError, ValueError) as e:
+                    msg = e.messages[0] if isinstance(e, ValidationError) else str(e)
+                    raise ValidationError(f'Строка «{line}»: {msg}')
+            return text
+
+    form = TemplateForm
+
+    def preview(self, obj):
+        lines = [l.strip() for l in obj.text.strip().splitlines() if l.strip()]
+        return ' | '.join(lines[:4]) + (' …' if len(lines) > 4 else '')
+    preview.short_description = 'Условия'
+
 
 @admin.register(InstallmentPlan)
 class InstallmentPlanAdmin(admin.ModelAdmin):
