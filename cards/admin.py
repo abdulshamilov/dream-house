@@ -109,6 +109,22 @@ def parse_quick_fill(text):
                     price_per_sqm=_parse_money(tokens[1]),
                     floor_from=floor_from, floor_to=floor_to,
                 ))
+            elif tokens[0].endswith('%'):
+                # Процентный взнос: «30% 90000 36»
+                if len(tokens) != 3:
+                    raise ValidationError('нужно: <взнос %> <цена за м²> <срок мес.>')
+                try:
+                    percent = Decimal(tokens[0][:-1].replace(',', '.'))
+                except InvalidOperation:
+                    raise ValidationError(f'Не удалось разобрать процент «{tokens[0]}»')
+                rows.append(dict(
+                    is_cash=False,
+                    down_payment_type='percent',
+                    down_payment_percent=percent,
+                    price_per_sqm=_parse_money(tokens[1]),
+                    term_months=int(tokens[2]),
+                    floor_from=floor_from, floor_to=floor_to,
+                ))
             else:
                 if len(tokens) != 3:
                     raise ValidationError('нужно: <взнос> <цена за м²> <срок мес.>')
@@ -125,8 +141,11 @@ def parse_quick_fill(text):
             raise ValidationError(f'Строка {lineno} («{raw.strip()}»): {msg}')
 
     # Верхняя граница взноса = порог следующего тарифа − 1 ₽
-    # (в рамках одного диапазона этажей и срока)
-    installment = [r for r in rows if not r['is_cash']]
+    # (в рамках одного диапазона этажей и срока; только для фикс. взносов)
+    installment = [
+        r for r in rows
+        if not r['is_cash'] and r.get('down_payment_type') == 'fixed'
+    ]
     def group_key(r):
         return (r['floor_from'], r['floor_to'], r['term_months'])
     for r in installment:
