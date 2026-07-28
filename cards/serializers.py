@@ -6,7 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 
 # Local
 from .models import (
-    Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CallRequest,
+    Card, CardImage, CardFloorPlan, CardVideo, CardStream, CardDocument, CallRequest,
     CardReview, CardQuestion, SearchHistory, ReviewLike,
     Favorite, DiscountRequest, Recommendation, ChatMessage, AIAssistant,
     CardDocumentList, ViewHistory, Promotion, PromotionItem,
@@ -133,6 +133,12 @@ class CardVideoSerializer(serializers.ModelSerializer):
         model = CardVideo
         fields = ['id', 'video']
 
+
+class CardStreamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CardStream
+        fields = ['id', 'title', 'url', 'stream_type']
+
 class CardDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = CardDocument
@@ -253,6 +259,7 @@ class CardSerializer(serializers.ModelSerializer):
     images = CardImageSerializer(many=True, read_only=True)
     floor_plans = CardFloorPlanSerializer(many=True, read_only=True)  # 🔑 Планировки
     videos = CardVideoSerializer(many=True, read_only=True)
+    streams = serializers.SerializerMethodField()
     documents = CardDocumentSerializer(many=True, read_only=True)
     document_lists = CardDocumentListSerializer(many=True, read_only=True)
     owner = serializers.StringRelatedField(read_only=True)
@@ -281,7 +288,7 @@ class CardSerializer(serializers.ModelSerializer):
             'rating', 'rating_count',
             'owner',
             'developer',
-            'images', 'floor_plans', 'videos', 'documents', 'document_lists',
+            'images', 'floor_plans', 'videos', 'streams', 'documents', 'document_lists',
             'reviews', 'questions',
             'list_curations',
             'is_pinned',
@@ -295,6 +302,11 @@ class CardSerializer(serializers.ModelSerializer):
     def get_reviews(self, obj):
         qs = obj.reviews.all().order_by('-created_at')
         return CardReviewSerializer(qs, many=True, context=self.context).data
+
+    @extend_schema_field(CardStreamSerializer(many=True))
+    def get_streams(self, obj):
+        qs = obj.streams.filter(is_active=True)
+        return CardStreamSerializer(qs, many=True, context=self.context).data
     
     @extend_schema_field(serializers.FloatField)
     def get_price_metr(self, obj):

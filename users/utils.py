@@ -11,7 +11,11 @@ def send_sms(phone_number, otp):
     params = {
         "api_id": API_KEY,
         "to": phone_number,
-        "msg": f"Ваш код подтверждения: {otp}",
+        "msg": (
+            f"{otp} — код для входа в Dream House. "
+            f"Действителен 5 минут, никому не сообщайте его.\n"
+            f"@dreamhouse05.com #{otp}"
+        ),
         "json": 1
     }
     response = requests.get(url, params=params)

@@ -281,6 +281,47 @@ class CardVideo(models.Model):
         return f"{self.card.title} Video"
 
 
+class CardStream(models.Model):
+    """Прямой эфир со стройки — ссылка на поток открытой IP-камеры."""
+
+    STREAM_TYPE_CHOICES = [
+        ('hls', 'HLS (.m3u8)'),
+        ('mjpeg', 'MJPEG (http-поток)'),
+        ('youtube', 'YouTube-трансляция'),
+        ('iframe', 'Iframe/embed (страница плеера)'),
+    ]
+
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='streams')
+    title = models.CharField(
+        max_length=100, blank=True,
+        verbose_name='Название',
+        help_text='Например: «Камера 1 — двор», «Вид на корпус 3»',
+    )
+    url = models.URLField(
+        max_length=500,
+        verbose_name='Ссылка на поток',
+        help_text=(
+            'HLS (.m3u8), MJPEG, ссылка на YouTube-трансляцию или страница '
+            'встраиваемого плеера. RTSP браузеры не открывают — поток надо '
+            'сначала перегнать в HLS.'
+        ),
+    )
+    stream_type = models.CharField(
+        max_length=10, choices=STREAM_TYPE_CHOICES, default='hls',
+        verbose_name='Тип потока',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Активен')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'Эфир с камеры'
+        verbose_name_plural = 'Эфиры с камер'
+
+    def __str__(self):
+        return f"{self.card.title} — {self.title or self.get_stream_type_display()}"
+
+
 class CardDocument(models.Model):
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='documents')
     document_list = models.ForeignKey(

@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils.html import format_html
 from .models import (
-    Card, CardImage, CardFloorPlan, CardVideo, CardDocument, CardReview, CardQuestion, ReviewLike,
+    Card, CardImage, CardFloorPlan, CardVideo, CardStream, CardDocument, CardReview, CardQuestion, ReviewLike,
     CallRequest, NewCallRequest, InProgressCallRequest, ProcessedCallRequest,
     DiscountRequest, Recommendation, AIAssistant, ChatMessage,
     CardDocumentList, ViewHistory, Promotion, PromotionItem, PrivacyPolicy,
@@ -187,6 +187,12 @@ class CardVideoInline(admin.TabularInline):
     max_num = 10
 
 
+class CardStreamInline(admin.TabularInline):
+    model = CardStream
+    extra = 1
+    fields = ['title', 'url', 'stream_type', 'is_active']
+
+
 class CardDocumentInline(admin.TabularInline):
     model = CardDocument
     extra = 1
@@ -356,7 +362,7 @@ class CardAdmin(admin.ModelAdmin):
         }),
     ]
     inlines = [
-        CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline,
+        CardImageInline, CardFloorPlanInline, CardVideoInline, CardStreamInline, CardDocumentInline,
         CardReviewInline, CardQuestionInline, InstallmentPlanInline, CardPromotionInline,
     ]
     actions = ['duplicate_cards', 'pin_cards', 'unpin_cards', 'hide_cards', 'show_cards']

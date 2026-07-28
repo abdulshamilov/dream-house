@@ -866,7 +866,7 @@ class SMSRequestView(APIView):
             # fallback: take last 10 digits and prefix 7
             digits = '7' + digits[-10:]
 
-        text = f"Kod Dream House: {otp}. Deistvitelen 5 minut."
+        text = f"{otp} — ваш код Dream House.\n@dreamhouse05.com #{otp}"
 
         params = {
             'api_id': api_id,
@@ -915,7 +915,7 @@ class SMSRequestView(APIView):
         else:
             phone_digits = '7' + phone_digits[-10:]  # Default to 7
         
-        message_text = f"Kod Dream House: {otp}. Deistvitelen 5 minut."
+        message_text = f"{otp} — ваш код Dream House.\n@dreamhouse05.com #{otp}"
         
         try:
             # p1sms API v2 endpoint (admin.p1sms.ru)
