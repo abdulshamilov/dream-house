@@ -39,6 +39,7 @@ from .views_ai import (
     RateAIResponseView,
 )
 from .views_installment import CardPaymentOptionsView, InstallmentCalculateView, InstallmentMatchView
+from .views_stream import StreamListView
 
 urlpatterns = [
     path("", CardListView.as_view(), name="cards_list"),
@@ -78,6 +79,8 @@ urlpatterns = [
     path("ai/chat/", AIChatView.as_view(), name="ai_chat"),
     path("ai/history/", ChatHistoryView.as_view(), name="chat_history"),
     path("ai/chat/<int:pk>/rate/", RateAIResponseView.as_view(), name="rate_ai_response"),
+    # ЭФИРЫ С КАМЕР
+    path("streams/", StreamListView.as_view(), name="streams_list"),
     # 🔑 ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ
     path("privacy-policy/", PrivacyPolicyView.as_view(), name="privacy_policy"),
     # РАССРОЧКА

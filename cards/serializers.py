@@ -135,9 +135,11 @@ class CardVideoSerializer(serializers.ModelSerializer):
 
 
 class CardStreamSerializer(serializers.ModelSerializer):
+    card_title = serializers.CharField(source='card.title', read_only=True, allow_null=True)
+
     class Meta:
         model = CardStream
-        fields = ['id', 'title', 'url', 'stream_type']
+        fields = ['id', 'title', 'url', 'stream_type', 'card', 'card_title']
 
 class CardDocumentSerializer(serializers.ModelSerializer):
     class Meta:

@@ -291,11 +291,16 @@ class CardStream(models.Model):
         ('iframe', 'Iframe/embed (страница плеера)'),
     ]
 
-    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='streams')
+    card = models.ForeignKey(
+        Card, on_delete=models.CASCADE, related_name='streams',
+        null=True, blank=True,
+        verbose_name='Карточка (ЖК)',
+        help_text='Необязательно: привязка к ЖК, если эфир относится к конкретному объекту',
+    )
     title = models.CharField(
         max_length=100, blank=True,
         verbose_name='Название',
-        help_text='Например: «Камера 1 — двор», «Вид на корпус 3»',
+        help_text='Например: «ЖК Новый Горизонт — двор», «Вид на корпус 3»',
     )
     url = models.URLField(
         max_length=500,
@@ -319,7 +324,8 @@ class CardStream(models.Model):
         verbose_name_plural = 'Эфиры с камер'
 
     def __str__(self):
-        return f"{self.card.title} — {self.title or self.get_stream_type_display()}"
+        name = self.title or self.get_stream_type_display()
+        return f"{self.card.title} — {name}" if self.card else name
 
 
 class CardDocument(models.Model):

@@ -187,10 +187,13 @@ class CardVideoInline(admin.TabularInline):
     max_num = 10
 
 
-class CardStreamInline(admin.TabularInline):
-    model = CardStream
-    extra = 1
-    fields = ['title', 'url', 'stream_type', 'is_active']
+@admin.register(CardStream)
+class CardStreamAdmin(admin.ModelAdmin):
+    list_display = ['title', 'card', 'stream_type', 'is_active', 'created_at']
+    list_filter = ['is_active', 'stream_type']
+    search_fields = ['title', 'url', 'card__title']
+    autocomplete_fields = ['card']
+    fields = ['title', 'url', 'stream_type', 'card', 'is_active']
 
 
 class CardDocumentInline(admin.TabularInline):
@@ -362,7 +365,7 @@ class CardAdmin(admin.ModelAdmin):
         }),
     ]
     inlines = [
-        CardImageInline, CardFloorPlanInline, CardVideoInline, CardStreamInline, CardDocumentInline,
+        CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline,
         CardReviewInline, CardQuestionInline, InstallmentPlanInline, CardPromotionInline,
     ]
     actions = ['duplicate_cards', 'pin_cards', 'unpin_cards', 'hide_cards', 'show_cards']
