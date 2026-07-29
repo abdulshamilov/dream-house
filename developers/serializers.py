@@ -4,19 +4,44 @@ from .models import Developer, Subscription
 from cards.serializers import CardSerializer
 
 
-class DeveloperLightSerializer(serializers.ModelSerializer):
+def _developer_avatar(obj, request):
+    """Первое непустое фото объектов застройщика (логотип не используется).
+
+    Идёт по префетченным cards/images (см. prefetch_related во вьюхах),
+    поэтому на списках не создаёт N+1.
+    """
+    for card in obj.cards.all():
+        if getattr(card, 'is_hidden', False):
+            continue
+        for img in card.images.all():
+            if img.image:
+                url = img.image.url
+                return request.build_absolute_uri(url) if request else url
+    return None
+
+
+class DeveloperAvatarMixin(serializers.Serializer):
+    avatar = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_avatar(self, obj):
+        request = self.context.get('request') if self.context else None
+        return _developer_avatar(obj, request)
+
+
+class DeveloperLightSerializer(DeveloperAvatarMixin, serializers.ModelSerializer):
     """Упрощенный сериализатор для списков подписок (без карточек)."""
     class Meta:
         model = Developer
-        fields = ['id', 'name', 'phone', 'logo']
+        fields = ['id', 'name', 'phone', 'logo', 'avatar']
 
-class DeveloperSerializer(serializers.ModelSerializer):
+class DeveloperSerializer(DeveloperAvatarMixin, serializers.ModelSerializer):
     cards = CardSerializer(many=True, read_only=True)
     is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
         model = Developer
-        fields = ['id', 'name', 'phone', 'logo', 'cards', 'is_subscribed']
+        fields = ['id', 'name', 'phone', 'logo', 'avatar', 'cards', 'is_subscribed']
 
     @extend_schema_field(serializers.BooleanField)
     def get_is_subscribed(self, obj):

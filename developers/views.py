@@ -73,14 +73,19 @@ class MySubscriptionsAPIView(generics.ListAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Subscription.objects.none()
-        return Subscription.objects.filter(user=self.request.user).select_related('developer').order_by('-created_at')
+        return (
+            Subscription.objects.filter(user=self.request.user)
+            .select_related('developer')
+            .prefetch_related('developer__cards__images')
+            .order_by('-created_at')
+        )
 
 # 🔹 Остальные стандартные view
 class DeveloperListAPIView(generics.ListAPIView):
     serializer_class = DeveloperSerializer
 
     def get_queryset(self):
-        qs = Developer.objects.all()
+        qs = Developer.objects.prefetch_related('cards__images')
         user = getattr(self.request, 'user', None)
         if user and user.is_authenticated:
             from django.db.models import Exists, OuterRef
@@ -104,7 +109,7 @@ class DeveloperDetailView(generics.RetrieveAPIView):
     queryset = Developer.objects.all()
 
     def get_queryset(self):
-        qs = Developer.objects.all()
+        qs = Developer.objects.prefetch_related('cards__images')
         user = getattr(self, 'request', None)
         user = getattr(user, 'user', None)
         if user and user.is_authenticated:
