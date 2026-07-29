@@ -6,10 +6,11 @@ from .models import Developer, Subscription
 
 @admin.register(Developer)
 class DeveloperAdmin(admin.ModelAdmin):
-    list_display = ('logo_preview', 'name', 'phone', 'cards_count', 'subscribers_count')
+    list_display = ('logo_preview', 'name', 'phone', 'avatar_status', 'cards_count', 'subscribers_count')
     list_display_links = ('logo_preview', 'name')
     list_editable = ('phone',)
     search_fields = ('name', 'phone')
+    fields = ('name', 'phone', 'logo', 'avatar_override')
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(
@@ -25,6 +26,12 @@ class DeveloperAdmin(admin.ModelAdmin):
             )
         return format_html('<span style="color:#ccc;">—</span>')
     logo_preview.short_description = 'Лого'
+
+    def avatar_status(self, obj):
+        if obj.avatar_override:
+            return format_html('<span style="color:#27ae60;">вручную</span>')
+        return format_html('<span style="color:#999;">авто (фото объекта)</span>')
+    avatar_status.short_description = 'Аватар на выдаче'
 
     def cards_count(self, obj):
         return obj._cards_count

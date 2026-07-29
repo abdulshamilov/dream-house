@@ -8,7 +8,16 @@ class Developer(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20, default='92-62-66', verbose_name='Телефон')
     logo = models.ImageField(upload_to='developers/logos/', null=True, blank=True)
-    
+    avatar_override = models.ImageField(
+        upload_to='developers/avatars/', null=True, blank=True,
+        verbose_name='Аватар (вручную)',
+        help_text=(
+            'Если задано — используется на выдаче вместо автоматического фото '
+            'с объектов. Если пусто — аватар берётся автоматически: первое фото '
+            'первой карточки застройщика.'
+        ),
+    )
+
     def __str__(self):
         return self.name
 

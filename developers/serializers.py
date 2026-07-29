@@ -5,11 +5,16 @@ from cards.serializers import CardSerializer
 
 
 def _developer_avatar(obj, request):
-    """Первое непустое фото объектов застройщика (логотип не используется).
+    """Аватар застройщика: ручной override, иначе первое непустое фото
+    объектов (логотип не используется).
 
     Идёт по префетченным cards/images (см. prefetch_related во вьюхах),
     поэтому на списках не создаёт N+1.
     """
+    if obj.avatar_override:
+        url = obj.avatar_override.url
+        return request.build_absolute_uri(url) if request else url
+
     for card in obj.cards.all():
         if getattr(card, 'is_hidden', False):
             continue
