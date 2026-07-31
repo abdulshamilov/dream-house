@@ -149,6 +149,16 @@ class Card(models.Model):
         null=True,
         verbose_name='Постер 3D модели',
     )
+    virtual_tour_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name='3D-тур (ссылка)',
+        help_text=(
+            'Ссылка на интерактивный 3D-тур/планировку (например ultra.plankton.su), '
+            'встраивается на сайте через iframe. Не путать с .glb/.usdz моделью выше.'
+        ),
+    )
 
     class Meta:
         ordering = ['-is_pinned', '-created_at']
@@ -175,6 +185,11 @@ class Card(models.Model):
     def has_3d_model(self) -> bool:
         """Возвращает True если загружена 3D-модель в формате .glb."""
         return bool(self.model_3d_glb)
+
+    @property
+    def has_virtual_tour(self) -> bool:
+        """Возвращает True если задана ссылка на внешний 3D-тур (iframe)."""
+        return bool(self.virtual_tour_url)
 
     def update_rating(self):
         """Пересчитать средний рейтинг по отзывам"""

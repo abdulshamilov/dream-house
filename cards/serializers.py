@@ -277,6 +277,7 @@ class CardSerializer(serializers.ModelSerializer):
     model_3d_glb = serializers.SerializerMethodField()
     model_3d_usdz = serializers.SerializerMethodField()
     model_3d_poster = serializers.SerializerMethodField()
+    has_virtual_tour = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Card
@@ -298,6 +299,7 @@ class CardSerializer(serializers.ModelSerializer):
             'created_at',
             'is_favorite',
             'has_3d_model', 'model_3d_glb', 'model_3d_usdz', 'model_3d_poster',
+            'has_virtual_tour', 'virtual_tour_url',
         ]
 
     @extend_schema_field(CardReviewSerializer(many=True))

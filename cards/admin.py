@@ -363,6 +363,11 @@ class CardAdmin(admin.ModelAdmin):
                 'Сжатие: <code>python manage.py compress_glb &lt;id&gt;</code>'
             ),
         }),
+        ('3D-тур (внешняя ссылка)', {
+            'fields': ['virtual_tour_url'],
+            'classes': ('collapse',),
+            'description': 'Ссылка на интерактивный 3D-тур (например ultra.plankton.su) — встраивается на сайте отдельным блоком.',
+        }),
     ]
     inlines = [
         CardImageInline, CardFloorPlanInline, CardVideoInline, CardDocumentInline,
